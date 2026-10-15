@@ -3,7 +3,7 @@
 // 1 fps frames, and hands the clip to server.py at /internal/clip.
 import { RingApi } from 'ring-client-api'
 import { firstValueFrom } from 'rxjs'
-import { readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, renameSync, rmSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, renameSync, rmSync, chmodSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import http from 'node:http'
@@ -36,7 +36,9 @@ const api = new RingApi({ refreshToken: tok.refreshToken, controlCenterDisplayNa
 api.onRefreshTokenUpdated.subscribe(({ newRefreshToken }) => {
   tok.refreshToken = newRefreshToken
   tok.saved = new Date().toISOString()
-  writeFileSync(tokenFile, JSON.stringify(tok) + '\n', { mode: 0o600 })
+  writeFileSync(tokenFile + '.tmp', JSON.stringify(tok) + '\n', { mode: 0o600 })
+  chmodSync(tokenFile + '.tmp', 0o600)
+  renameSync(tokenFile + '.tmp', tokenFile)
 })
 
 const post = (p, body) => fetch(SERVER + p, {

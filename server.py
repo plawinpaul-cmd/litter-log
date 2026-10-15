@@ -164,7 +164,7 @@ def write_private(f: Path, text: str):
 
 def secret(name: str) -> str:
     f = SECRETS / name
-    if not f.exists():
+    if not f.exists() or len(f.read_text().strip()) < 6:   # an empty key file would match an empty cookie
         SECRETS.mkdir(mode=0o700, parents=True, exist_ok=True)
         write_private(f, secrets.token_urlsafe(32) + "\n")
     return f.read_text().strip()
@@ -488,7 +488,7 @@ async def vision_clip(app, clip_id: int):
 
 
 def keep_nap_check(db, row, res: dict, folder: Path):
-    """A nap check is a 6 s look into a bedroom. Keep the pet crops only; if a person is in view keep nothing
+    """A nap check is a 6 s look at a room. Keep the pet crops only; if a person is in view keep nothing
     but the fact that the check happened. The clip and its frames are deleted either way."""
     animals = []
     if not res.get("persons"):
@@ -571,7 +571,7 @@ def crop_light(path: Path) -> float | None:
 def box_windows(v) -> list[tuple[int, int]]:
     """When a camera sees the visiting cat: walking up (45 s before the box logs it in, to 10 s after) and walking
     out (10 s before the box logs the exit, to 45 s after). A cat in view in between is another one walking past
-    (10/09 7:52 PM: Syd crossed the bedroom 100 s into Rocky's visit). The downstairs camera catches the walk-up
+    (one cat crossed the room 100 s into another's visit). The downstairs camera catches the walk-up
     (every known downstairs crop through 10/11 was 2 to 42 s before the visit); the upstairs one, which records
     only from the late cat-in report, catches the exit."""
     return [(v["start_ts"] - 45, v["start_ts"] + 10), (v["end_ts"] - 10, v["end_ts"] + 45)]
@@ -1407,7 +1407,7 @@ def only_dog(c: dict) -> bool:
 def ir_coat_at(cam: str, ts: float) -> bool:
     """Does the night coat rule hold for this camera's clip from this time? cams.json "ir_coat": true, or
     "ir_coat_until": "<ISO time>" for a camera since moved up close, where the infrared lamp lights tabbies too
-    (the upstairs doorbell went from across the bedroom into the box's cabinet on 2026-10-11; up close Rocky's
+    (a camera moved from across a room to right at the box; up close Rocky's
     crops read as light as Syd's). Its older clips keep the rule."""
     c = CAMS.get(cam, {})
     if c.get("ir_coat_until"):
@@ -1663,7 +1663,9 @@ async def api_nap_wrong(request: web.Request):
         keep = [k for k in animals if nap_who(vm, k, cat_ids, ids) != who]
         for k in animals:
             if k not in keep and k.get("crop"):
-                (MEDIA / k["crop"]).unlink(missing_ok=True)
+                crop = (MEDIA / k["crop"]).resolve()
+                if crop.is_relative_to(MEDIA.resolve()):
+                    crop.unlink(missing_ok=True)
         if len(keep) != len(animals):
             removed += len(animals) - len(keep)
             db.execute("UPDATE nap_checks SET animals=? WHERE id=?", (json.dumps(keep), r["id"]))
@@ -1817,8 +1819,8 @@ async def media(request: web.Request):
     rel = Path(request.match_info["path"])
     if rel.is_absolute() or ".." in rel.parts:
         raise web.HTTPNotFound()
-    f = MEDIA / rel
-    if not f.is_file():
+    f = (MEDIA / rel).resolve()
+    if not f.is_relative_to(MEDIA.resolve()) or not f.is_file():   # a symlink out of media/ is not served
         raise web.HTTPNotFound()
     return web.FileResponse(f, headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
@@ -1860,7 +1862,7 @@ async def janitor_loop(app):
         await asyncio.sleep(300)
         now = time.time()
         db = app["db"]
-        # a bedroom nap check the camera model never got to (GPU worker down) must not linger
+        # a nap check the camera model never got to (GPU worker down) must not linger
         for r in db.execute("SELECT id, path FROM clips WHERE reason='nap' AND start_ts<?", (now - 1200,)).fetchall():
             drop_clip(db, r)
         # a clip that lines up with no litter-box visit within 30 min AND shows no cat or dog (people walking
