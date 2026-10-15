@@ -1,0 +1,14 @@
+{
+  "Litter cam": {
+    "robot": "lr4",
+    "label": "Downstairs camera",
+    "kind": "Ring Indoor Cam on the floor, facing the Litter-Robot 4"
+  },
+  "Bedroom cam": {
+    "robot": "evo",
+    "label": "Upstairs camera",
+    "kind": "any Ring camera facing the Litter-Robot 5; naps = also look for napping pets every 10 min (nothing is kept if a person is in view); ir_coat = in night vision a light coat is the orange cat (set it only for a camera that sees cats from across a room: up close the infrared lamp makes tabbies light too; if you move it closer, replace it with ir_coat_until = the ISO time of the move, so older clips keep the rule)",
+    "naps": true,
+    "ir_coat": true
+  }
+}

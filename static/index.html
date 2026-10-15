@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Litter Log</title>
+<meta name="description" content="Which cat used which litter box, with photos.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Litter Log">
+<meta name="theme-color" content="#14110E" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FAF5EE" media="(prefers-color-scheme: light)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Archivo headlines, Inter body, glass cards; a warm palette taken from cat coats:
+   tabby-brown night, cream text, ginger accent. */
+:root {
+  --bg: #14110E; --surface: #1E1915; --surface-2: #28211B; --deep: #0F0C0A; --border: #3A3027;
+  --glass: rgba(255,248,238,.05); --glass-2: rgba(255,248,238,.10); --glass-border: rgba(255,248,238,.16); --hairline: rgba(255,248,238,.07);
+  --box-1: #4FA89A; --box-2: #9C86D9;
+  --ink: #FBF6EF; --ink-2: #C9B9A6; --ink-3: #95836F;
+  --accent: #E8743B; --accent-2: #F2A65A; --on-accent: #1A0F08;
+  --ok: #7FD39A; --warn: #F2B54A; --err: #F08A7A;
+  --molten: linear-gradient(135deg, var(--accent), var(--accent-2));
+  --shadow: 0 1px 0 rgba(255,248,238,.04) inset, 0 10px 30px rgba(0,0,0,.28);
+  --r-lg: 22px; --r-md: 16px; --r-sm: 12px;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #FAF5EE; --surface: #FFFDF9; --surface-2: #F1E8DC; --deep: #ECE1D3; --border: #E2D4C3;
+    --glass: rgba(42,30,21,.04); --glass-2: rgba(42,30,21,.07); --glass-border: rgba(42,30,21,.14); --hairline: rgba(42,30,21,.08);
+    --box-1: #2F8577; --box-2: #7559C2;
+    --ink: #2A1E15; --ink-2: #6B5A49; --ink-3: #7A6754;
+    --accent: #C85A22; --accent-2: #E8743B; --on-accent: #FFFFFF;
+    --ok: #2E8B57; --warn: #A86A12; --err: #B4402E;
+    --shadow: 0 1px 2px rgba(42,30,21,.06), 0 8px 24px rgba(42,30,21,.07);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font: 16px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased;
+  padding: env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 28px); }
+main { max-width: 640px; margin: 0 auto; padding: 0 16px; }
+button { font: inherit; color: inherit; }
+img { display: block; }
+.eyebrow { font: 700 12px/1 Archivo, Inter, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); }
+.display { font-family: Archivo, Inter, sans-serif; font-weight: 900; letter-spacing: -.02em; }
+
+/* hero */
+.hero { padding: 22px 0 6px; display: flex; gap: 14px; align-items: center; }
+.mark { width: 46px; height: 46px; border-radius: 14px; background: var(--molten); display: grid; place-items: center; flex: none; }
+.hero h1 { font-size: 30px; line-height: 1.04; margin: 6px 0 0; }
+.today { margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 14px 10px; box-shadow: var(--shadow); }
+.track { position: relative; height: 84px; }
+.track .rail { position: absolute; left: 0; right: 0; top: 64px; height: 4px; border-radius: 2px; background: var(--glass-2); }
+.track .night { position: absolute; top: 64px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--ink-3) 35%, transparent); }
+.track .now { position: absolute; top: 4px; bottom: 14px; width: 2px; background: var(--molten); border-radius: 1px; }
+.track .now::after { content: "now"; position: absolute; top: -2px; left: 5px; font: 700 10px Inter, sans-serif; color: var(--accent-2); letter-spacing: .04em; }
+.dotv { position: absolute; width: 28px; height: 28px; margin-left: -14px; border-radius: 50%; border: 2px solid var(--c); background: var(--deep); overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.dotv img { width: 100%; height: 100%; object-fit: cover; }
+.dotv.q { border-style: dashed; display: grid; place-items: center; font: 800 13px Archivo, sans-serif; color: var(--ink-3); }
+.dotv::after { content: ""; position: absolute; }
+.stem { position: absolute; width: 2px; margin-left: -1px; background: color-mix(in srgb, var(--c) 70%, transparent); bottom: 16px; }
+.hours { display: flex; justify-content: space-between; font: 600 10px Inter, sans-serif; color: var(--ink-3); margin-top: 2px; }
+.todayfoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.sortbtn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 999px; padding: 9px 14px; background: var(--molten); color: var(--on-accent); font-weight: 700; font-size: 14px; cursor: pointer; }
+.sortbtn b { font: 900 16px Archivo, Inter, sans-serif; }
+.updated { color: var(--ink-3); font-size: 12px; margin: 0; }
+.banner { display: flex; gap: 10px; align-items: flex-start; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  border-radius: var(--r-md); padding: 12px 14px; margin: 14px 0 0; font-size: 14px; }
+.banner svg { flex: none; margin-top: 1px; color: var(--warn); }
+
+/* cat cards */
+.cats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+.cat { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 8px 12px; text-align: center; cursor: pointer; min-width: 0; box-shadow: var(--shadow); transition: transform .15s ease; overflow: hidden; }
+.cat::before { content: ""; position: absolute; inset: 0 0 auto; height: 58px; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 22%, transparent), transparent); pointer-events: none; }
+.cat:active { transform: scale(.98); }
+.cat[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 1px var(--c), var(--shadow); }
+.ring { position: relative; width: 76px; height: 76px; border-radius: 50%; padding: 3px; margin: 0 auto 8px; background: conic-gradient(var(--c), color-mix(in srgb, var(--c) 40%, transparent), var(--c)); }
+.ring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid var(--surface); }
+.cat .nm { position: relative; font: 800 17px/1.1 Archivo, Inter, sans-serif; }
+.cat .lb { font-size: 12px; font-weight: 600; color: var(--ink-2); margin-top: 2px; }
+.cat .ct { font: 900 34px/1 Archivo, Inter, sans-serif; margin-top: 6px; }
+.cat .ct small { display: block; font: 600 11px/1.2 Inter, sans-serif; color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; margin-top: 3px; }
+.cat .last { font-size: 12px; color: var(--ink-2); margin-top: 8px; overflow-wrap: anywhere; }
+.cat .last.late { color: var(--warn); font-weight: 600; }
+
+/* panels */
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; margin-top: 14px; box-shadow: var(--shadow); }
+.ph { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.ph .ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent-2); flex: none; }
+.ph h2 { font: 800 18px/1.1 Archivo, Inter, sans-serif; margin: 0; letter-spacing: -.01em; }
+.ph small { display: block; color: var(--ink-3); font-size: 12px; margin-top: 2px; }
+.muted { color: var(--ink-2); font-size: 14px; margin: 0; }
+
+/* who's this */
+.ask + .ask { border-top: 1px solid var(--hairline); margin-top: 14px; padding-top: 14px; }
+.ask .pics { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.ask .pics img { height: 132px; width: auto; max-width: 220px; border-radius: var(--r-sm); object-fit: cover; background: var(--deep); flex: none; }
+.ask .q { font-weight: 600; margin: 10px 0; }
+.ask .q span { color: var(--ink-3); font-weight: 500; }
+.wt { display: inline-block; font: 900 22px/1 Archivo, Inter, sans-serif; letter-spacing: -.01em; margin-right: 8px; vertical-align: -2px; }
+.wt small { font: 700 13px Inter, sans-serif; color: var(--ink-2); margin-left: 2px; }
+.ask .q .wt { color: var(--ink); font-weight: 900; }
+.ask .q .wt small { color: var(--ink-2); font-weight: 700; }
+.picks { display: flex; gap: 8px; flex-wrap: wrap; }
+.pick { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px 6px 6px; min-height: 48px; border-radius: 999px; border: 1px solid var(--glass-border); background: var(--glass); cursor: pointer; font-weight: 600; }
+.pick img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2px var(--c); }
+.pick[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: #fff; }
+.pick.plain { padding: 6px 16px; }
+.pick:active { transform: scale(.98); }
+
+.strip .napwrong { margin-top: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--hairline); background: transparent; color: var(--ink-2); font: 600 12px Inter, sans-serif; cursor: pointer; }
+.strip .napwrong.armed { border-color: var(--warn); color: var(--ink); }
+.live { display: inline-flex; align-items: center; gap: 6px; color: var(--ok); font-weight: 600; }
+.live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent); }
+
+/* spotted */
+.strip { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.strip figure { margin: 0; flex: none; width: 136px; }
+.strip a, .strip .ph-img { display: block; border-radius: var(--r-md); overflow: hidden; background: var(--deep); position: relative; }
+.strip img { display: block; width: 136px; height: 136px; object-fit: contain; }
+.strip .play { position: absolute; right: 8px; bottom: 8px; width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,.55); display: grid; place-items: center; color: #fff; }
+.strip figcaption { margin-top: 6px; font-size: 12px; color: var(--ink-2); }
+.strip figcaption b { color: var(--ink); font: 800 14px Archivo, Inter, sans-serif; display: block; }
+
+/* filter + timeline */
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 20px 0 4px; }
+.chip { flex: none; border: 1px solid var(--glass-border); background: var(--glass); border-radius: 999px; padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--molten); color: var(--on-accent); border-color: transparent; }
+.search { position: relative; margin-top: 12px; }
+.search input { width: 100%; font: 500 16px Inter, sans-serif; padding: 13px 44px 13px 42px; border-radius: 999px; border: 1px solid var(--glass-border); background: var(--surface); color: var(--ink); outline: none; -webkit-appearance: none; }
+.search input::placeholder { color: var(--ink-3); }
+.search input::-webkit-search-cancel-button, .search input::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+body.searching #ask, body.searching #spotted, body.searching #chart { display: none; }
+.search input:focus { border-color: var(--accent); }
+.search .mag { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
+.search .clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--glass-2); color: var(--ink-2); cursor: pointer; display: none; }
+.search.has .clear { display: block; }
+.matches { color: var(--ink-3); font-size: 13px; margin: 10px 2px 0; }
+.day { margin: 22px 0 10px; }
+.visit { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--c); border-radius: var(--r-md); margin-bottom: 8px; overflow: hidden; }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer; min-height: 64px; }
+.row .av { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid var(--c); flex: none; }
+.row .tx { min-width: 0; flex: 1; }
+.row b { font: 800 16px/1.15 Archivo, Inter, sans-serif; }
+.row .place { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-left: 6px; }
+.row small { display: block; color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.row .th { width: 58px; height: 44px; border-radius: 10px; object-fit: cover; flex: none; background: var(--deep); }
+.ok-dot { color: var(--ok); }
+.row .av.guess { border-style: dashed; opacity: .88; }
+.tag { display: inline-block; font: 700 11px/1 Inter, sans-serif; letter-spacing: .03em; color: var(--ink-2); border: 1px dashed var(--glass-border); border-radius: 999px; padding: 3px 8px; margin-left: 6px; vertical-align: 2px; white-space: nowrap; }
+.guessline { font-size: 14px; color: var(--ink-2); margin: 0 0 4px; }
+.guessline b { color: var(--ink); }
+.why { margin: 4px 0 12px; padding-left: 18px; color: var(--ink-2); font-size: 13px; }
+.why li + li { margin-top: 3px; }
+.pick.sug { box-shadow: inset 0 0 0 2px var(--c); }
+.pick.sm { min-height: 36px; padding: 3px 12px 3px 3px; gap: 6px; font-size: 14px; }
+.pick.sm img { width: 26px; height: 26px; }
+.pick.plain.sm { padding: 3px 12px; }
+.picks.sm { gap: 6px; }
+.dotv.g { border-style: dashed; }
+.detail { padding: 0 12px 14px; }
+.photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.photos figure { margin: 0; position: relative; }
+/* contain, never cover: a cat crop is often tall and narrow (a cat walking away), and cover cut off its head */
+.photos img { display: block; width: 100%; aspect-ratio: 4/3; object-fit: contain; border-radius: var(--r-sm); background: var(--deep); }
+.photos.crops img { aspect-ratio: 1; }
+.photos figcaption { margin-top: 4px; color: var(--ink-2); font-size: 12px; font-weight: 600; }
+video { width: 100%; border-radius: var(--r-sm); margin-top: 6px; background: #000; }
+.facts { color: var(--ink-2); font-size: 13px; margin: 10px 0; }
+.catp svg { width: 100%; height: auto; display: block; margin-top: 6px; }
+.catp svg text { fill: var(--ink-3); font-size: 10px; font-family: Inter, sans-serif; }
+.cp-head { display: flex; gap: 14px; align-items: center; }
+.cp-head img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid var(--c); flex: none; }
+.cp-big { font: 900 34px/1 Archivo, Inter, sans-serif; margin: 4px 0; }
+.cp-big small { font: 600 14px Inter, sans-serif; color: var(--ink-2); }
+.cp-row { border-top: 1px solid var(--hairline); margin-top: 14px; padding-top: 12px; }
+.cp-lab { font: 700 12px/1.2 Inter, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+.cp-words { font-size: 14px; color: var(--ink-2); margin-top: 6px; overflow-wrap: anywhere; }
+.cp-words b, .wrow b { color: var(--ink); }
+.split { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--deep); }
+.split span { display: block; height: 100%; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: 0; }
+.faint { color: var(--ink-3); font-size: 12px; }
+.parts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; text-align: center; }
+.pbar { height: 54px; background: var(--deep); border-radius: 8px; display: flex; align-items: flex-end; overflow: hidden; }
+.pbar span { display: block; width: 100%; border-radius: 8px 8px 0 0; }
+.parts b { display: block; font: 800 15px Archivo, Inter, sans-serif; margin-top: 4px; }
+.parts small { color: var(--ink-3); font-size: 12px; }
+.wrow { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr); align-items: center; gap: 4px 8px; font-size: 14px; color: var(--ink-2); margin-top: 6px; }
+.wrow small { grid-column: 2 / 4; color: var(--ink-3); font-size: 12px; }
+.wrow .spark { grid-row: 1 / 3; grid-column: 4; width: 100%; max-width: 140px; height: 30px; justify-self: end; margin: 0; }
+.empty { color: var(--ink-2); text-align: center; padding: 28px 8px; }
+
+/* box controls */
+.bx { border-left: 3px solid var(--bc); padding-left: 12px; }
+.bx + .bx { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.bx-head { display: flex; align-items: center; gap: 12px; }
+.bx-head .tx { flex: 1; min-width: 0; }
+.bx-head b { font: 800 16px/1.15 Archivo, Inter, sans-serif; }
+.bx-head small { display: block; color: var(--ink-2); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+.bx-head small.hot { color: var(--warn); font-weight: 600; }
+.cleanbtn { flex: none; border: 0; border-radius: 999px; padding: 10px 16px; min-height: 44px; background: var(--molten); color: var(--on-accent); font-weight: 700; font-size: 14px; cursor: pointer; }
+.cleanbtn.armed { background: var(--surface-2); color: var(--ink); box-shadow: inset 0 0 0 2px var(--accent); }
+.cleanbtn:disabled { background: var(--glass-2); color: var(--ink-3); cursor: default; }
+.cleanbtn:active:not(:disabled) { transform: scale(.98); }
+.ctl-toggle { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer; margin-top: 28px; }
+.ctl-toggle .ph { margin: 0; flex: 1; }
+.ctl-toggle .h { display: block; font: 800 18px/1.1 Archivo, Inter, sans-serif; letter-spacing: -.01em; }
+.ctl-toggle .ph small.hot { color: var(--warn); font-weight: 600; }
+.ctl-toggle .chev { color: var(--ink-3); flex: none; transition: transform .2s; }
+.ctl-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.bx-more { border: 0; background: none; color: var(--ink-2); font-size: 13px; font-weight: 600; padding: 10px 0 2px; cursor: pointer; }
+.bx-set { display: grid; gap: 12px; margin-top: 10px; }
+.bx-set > div > span { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { border: 1px solid var(--glass-border); background: var(--glass); border-radius: 999px; padding: 6px 14px; min-width: 44px; min-height: 40px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: transparent; }
+.seg button:disabled { opacity: .55; cursor: default; }
+.bx-err { color: var(--err); font-size: 13px; margin: 8px 0 0; }
+.bx-last { color: var(--ink-3); font-size: 12px; margin: 8px 0 0; }
+
+/* feeder */
+.fd-pick { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.fd-pick > span { font-size: 13px; color: var(--ink-2); }
+.fd-today { color: var(--ink-2); font-size: 13px; margin: 10px 0 0; }
+.meals { display: grid; gap: 8px; margin-top: 12px; }
+.meal { display: flex; align-items: center; gap: 10px; border: 1px solid var(--hairline); border-radius: 14px; padding: 4px 8px 4px 12px; }
+.meal.off .mt { opacity: .55; }
+.meal .mt { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--ink); padding: 8px 0; min-height: 44px; cursor: pointer; font: inherit; }
+.meal .mt b { font: 700 15px/1.2 Inter, sans-serif; }
+.meal .mt small { display: block; color: var(--ink-2); font-size: 12px; margin-top: 2px; }
+.meal-edit { display: grid; gap: 12px; border: 1px solid var(--glass-border); border-radius: 14px; padding: 12px; }
+.meal-edit > div > span { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+.meal-edit input[type=time] { font: inherit; font-size: 16px; padding: 8px 12px; min-height: 44px; border-radius: 12px; border: 1px solid var(--glass-border); background: var(--glass); color: var(--ink); }
+.meal-edit .row2 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.meal-edit .note { color: var(--warn); font-size: 13px; margin: 0; }
+.addmeal { margin-top: 8px; }
+
+/* footer */
+footer { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--hairline); color: var(--ink-3); font-size: 13px; }
+footer .dev { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
+footer .dev span:last-child { text-align: right; color: var(--ink-2); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--ok); vertical-align: 1px; }
+.dot.off { background: var(--err); } .dot.low { background: var(--warn); }
+footer label { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; color: var(--ink-2); }
+footer input { font: inherit; font-size: 15px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--glass-border); background: var(--glass); color: var(--ink); width: 150px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <div class="mark" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 512 512" fill="#fff"><ellipse cx="256" cy="330" rx="98" ry="84"/><ellipse cx="150" cy="214" rx="40" ry="52" transform="rotate(-18 150 214)"/><ellipse cx="218" cy="150" rx="40" ry="54" transform="rotate(-6 218 150)"/><ellipse cx="294" cy="150" rx="40" ry="54" transform="rotate(6 294 150)"/><ellipse cx="362" cy="214" rx="40" ry="52" transform="rotate(18 362 214)"/></svg></div>
+    <div><div class="eyebrow" id="eyebrow">Litter Log</div><h1 class="display" id="headline">Loading…</h1></div>
+  </header>
+  <div class="today" id="today" aria-label="Today's visits"></div>
+  <div id="banner"></div>
+  <section id="pinned"></section>
+  <section class="cats" id="cats" aria-label="Cats"></section>
+  <div class="chips" id="chips" role="toolbar" aria-label="Show"></div>
+  <div id="chart"></div>
+  <div class="search" id="searchbox">
+    <svg class="mag" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" enterkeyhint="search" autocomplete="off" placeholder="Search: a name, upstairs, Tuesday, 10.2…" aria-label="Search visits">
+    <button class="clear" id="qclear" type="button" aria-label="Clear search">✕</button>
+  </div>
+  <div class="matches" id="matches"></div>
+  <section id="ask"></section>
+  <section id="spotted"></section>
+  <section id="list" aria-live="polite"></section>
+  <section id="controls" aria-label="Boxes and feeder">
+    <button type="button" class="panel ctl-toggle" id="ctl-toggle" aria-expanded="false" aria-controls="ctl-body"></button>
+    <div id="ctl-body" hidden>
+      <section id="boxes" aria-label="Litter boxes"></section>
+      <section id="feeder" aria-label="Feeder"></section>
+    </div>
+  </section>
+  <footer>
+    <label>Your name <input id="me" maxlength="24" placeholder="e.g. Mom" autocomplete="given-name"></label>
+    <div id="devices"></div>
+  </footer>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const store = { get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+let S = null, filter = "all", open = new Set(), query = "";
+// a link like /#v=<visit id>,<visit id> opens just those visits at the top, to check them
+let pinned = [];
+const readPins = () => { pinned = (new URLSearchParams(location.hash.slice(1)).get("v") || "").split(",").filter(Boolean); pinned.forEach(id => open.add(id)); };
+readPins();
+window.addEventListener("hashchange", () => { readPins(); if (S) render(); });
+let qTimer;
+$("#q").addEventListener("input", e => { clearTimeout(qTimer); qTimer = setTimeout(() => { query = e.target.value.trim().toLowerCase(); $("#searchbox").classList.toggle("has", !!query); document.body.classList.toggle("searching", !!query); render(); }, 120); });
+$("#qclear").addEventListener("click", () => { $("#q").value = ""; query = ""; $("#searchbox").classList.remove("has"); document.body.classList.remove("searching"); render(); $("#q").focus(); });
+$("#me").value = store.get("catbox-name");
+$("#me").addEventListener("change", e => store.set("catbox-name", e.target.value.trim()));
+
+const ICON = {
+  eye: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  moon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  help: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>',
+  warn: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+  bowl: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11h18a9 9 0 0 1-18 0z"/><path d="M8 7c0-1.5 1-2 1-3.5M12 7c0-1.5 1-2 1-3.5M16 7c0-1.5 1-2 1-3.5"/></svg>',
+  box: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10h16v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 10a8 8 0 0 1 16 0"/><path d="M9 15h6"/></svg>',
+  play: '<svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>',
+};
+const ago = ts => { const m = Math.round((Date.now() / 1000 - ts) / 60);
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} hr ago` : `${Math.round(m / 1440)} days ago`; };
+const hm = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const hms = ts => new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+const dayKey = ts => new Date(ts * 1000).toDateString();
+const dayLabel = ts => { const d = new Date(ts * 1000), t = new Date(), y = new Date(); y.setDate(t.getDate() - 1);
+  return d.toDateString() === t.toDateString() ? "Today" : d.toDateString() === y.toDateString() ? "Yesterday" : d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }); };
+const mins = s => s == null ? "" : s < 90 ? `${s} sec` : `${Math.round(s / 60)} min`;
+const midnight = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() / 1000; };
+const cat = id => S.cats.find(c => c.id === id) || { id, name: "?", color: "#888", photo: "" };
+const place = r => (S.places || {})[r] || r;
+const pet = id => (S.naps?.dog && id === S.naps.dog.id) ? { ...S.naps.dog, photo: null } : id ? cat(id) : null;
+const list = names => names.length < 2 ? names.join("") : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+
+async function load() {
+  try {
+    const r = await fetch("/api/state?days=90", { cache: "no-store" });
+    if (r.status === 401) { location.reload(); return; }
+    const next = await r.json();
+    if (S && next.version && S.version && next.version !== S.version) { location.reload(); return; }
+    S = next; render();
+  } catch { $("#banner").innerHTML = `<div class="banner">${ICON.warn}<span>Can't reach the Litter Log right now. Retrying…</span></div>`; }
+}
+
+function render() {
+  const m0 = midnight();
+  const today = S.visits.filter(v => v.end >= m0);
+  const hiddenToday = (S.omitted || []).filter(v => v.end >= m0).length;
+  const flips = hiddenToday + today.filter(v => v.state === "unsure").length;
+  const total = today.length + hiddenToday;
+  const known = S.cats.map(c => [c, today.filter(v => v.cat === c.id && v.state !== "unsure").length]);
+  $("#eyebrow").textContent = new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+  $("#headline").textContent = total ? `${total} ${total === 1 ? "visit" : "visits"} today` : "No visits yet today";
+  $("#today").innerHTML = todayHtml(m0, toSort().filter(v => !guessOf(v)).length + checks().length);
+  const cams = S.cam?.cams || [], off = cams.filter(c => !c.online), msgs = [];
+  if (off.length) msgs.push(`${list(off.map(c => c.label || c.name))} ${off.length > 1 ? "are" : "is"} offline, so ${off.length > 1 ? "those boxes" : "that box"} won't get photos for now.`);
+  if (S.health?.whisker?.ok === false) msgs.push("Can't reach Whisker right now. New visits will show up when it's back.");
+  $("#banner").innerHTML = msgs.map(m => `<div class="banner">${ICON.warn}<span>${esc(m)}</span></div>`).join("");
+  $("#cats").innerHTML = S.cats.map(c => {
+    const mine = S.visits.filter(v => v.cat === c.id && v.state !== "unsure");
+    const n = mine.filter(v => v.end >= m0).length, last = mine[0];
+    const likely = unsorted().filter(v => v.end >= m0 && guessOf(v)?.cat === c.id).length;
+    // visits that may have been this cat (toss-ups between two cats) since the last sure one
+    const maybe = [...(S.omitted || []), ...S.visits.filter(v => v.state === "unsure")]
+      .filter(v => v.options.some(o => o.cat === c.id) && (!last || v.end > last.end));
+    const late = last && S.now - last.end > 24 * 3600 && !maybe.length;
+    const line = !last ? "no visits yet" : `${ago(last.end)}<br>${esc(place(last.robot))}`;
+    const extra = "";
+    return `<button class="cat" style="--c:${c.color}" aria-pressed="${filter === c.id}" data-cat="${c.id}" aria-label="${esc(c.name)}: ${n} today">
+      <div class="ring"><img src="${c.photo}" alt=""></div><div class="nm">${esc(c.name)}</div>${c.lb ? `<div class="lb">${c.lb.toFixed(1)} lb</div>` : ""}
+      <div class="ct">${n}<small>today${likely ? ` · +${likely} likely` : ""}</small></div>
+      <div class="last ${late ? "late" : ""}">${line}${extra}</div></button>`;
+  }).join("");
+  document.querySelectorAll(".cat").forEach(b => b.onclick = () => { filter = filter === b.dataset.cat ? "all" : b.dataset.cat; render(); });
+  $("#pinned").innerHTML = pinnedHtml();
+  $("#ask").innerHTML = askHtml();
+  $("#spotted").innerHTML = spottedHtml(); bindNaps();
+  $("#chips").innerHTML = [["all", "Everyone"], ...S.cats.map(c => [c.id, esc(c.name)])]
+    .map(([k, l]) => `<button class="chip" data-f="${k}" aria-pressed="${filter === k}">${l}</button>`).join("");
+  document.querySelectorAll(".chip").forEach(b => b.onclick = () => { filter = b.dataset.f; render(); });
+  $("#chart").innerHTML = S.cats.some(c => c.id === filter) ? catPanelHtml(cat(filter)) : "";
+  const open_ = filter === "all" ? unsorted() : unsorted().filter(v => v.options.some(o => o.cat === filter) && query);
+  const terms = query.split(/\s+/).filter(Boolean);
+  const vs = [...S.visits.filter(v => v.state !== "unsure" && (filter === "all" || v.cat === filter)), ...open_]
+    .filter(v => terms.every(t => visitText(v).includes(t))).sort((a, b) => b.end - a.end);
+  $("#matches").textContent = terms.length ? `${vs.length} ${vs.length === 1 ? "visit" : "visits"} match` : "";
+  let html = "", lastDay = "";
+  for (const v of vs) {
+    if (dayKey(v.end) !== lastDay) { lastDay = dayKey(v.end); html += `<div class="day eyebrow">${dayLabel(v.end)}</div>`; }
+    html += v.state === "unsure" ? (guessOf(v) ? guessRowHtml(v) : sortRowHtml(v)) : visitHtml(v);
+  }
+  $("#list").innerHTML = html || `<div class="empty">${terms.length ? "Nothing matches that search." : "No visits yet."}</div>`;
+  document.querySelectorAll(".visit .row:not([data-sort])").forEach(el => {
+    const toggle = () => { const id = el.closest(".visit").dataset.id; open.has(id) ? open.delete(id) : open.add(id); render(); };
+    el.onclick = toggle; el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
+  });
+  document.querySelectorAll("[data-label]").forEach(b => b.onclick = e => { e.stopPropagation(); label(b.dataset.visit, b.dataset.label, b.dataset.keep === "1"); });
+  const more = $("#more"); if (more) more.onclick = () => { reviewShown += 5; render(); };
+  const gb = $("#guesses"); if (gb) gb.onclick = () => { showGuesses = !showGuesses; reviewShown = 5; render(); };
+  const up = $("#unpin"); if (up) up.onclick = () => { pinned = []; history.replaceState(null, "", location.pathname + location.search); render(); };
+  const go = $("#gosort"); if (go) go.onclick = () => (document.getElementById("recheck") || document.getElementById("review"))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.querySelectorAll("[data-skip]").forEach(b => b.onclick = e => { e.stopPropagation(); const id = b.dataset.skip;
+    for (const v of [...S.visits, ...(S.omitted || [])]) if (v.id === id) v.reviewed = true;
+    open.delete(id); render();
+    fetch("/api/reviewed", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: [id] }) }); });
+  document.querySelectorAll("[data-sort]").forEach(b => b.onclick = () => { const id = b.dataset.sort; open.has(id) ? open.delete(id) : open.add(id); render(); });
+  $("#ctl-toggle").innerHTML = controlsHtml();
+  $("#boxes").innerHTML = boxesHtml();
+  bindBoxes();
+  // don't redraw the feeder under someone's finger while they type a meal time
+  if (!feederUI.typing) { $("#feeder").innerHTML = feederHtml(); bindFeeder(); }
+  $("#devices").innerHTML = devicesHtml();
+  if (ctlJump) { ctlJump = false; $("#controls").scrollIntoView({ block: "start" }); }
+}
+
+const pickBtn = (visit, id, pressed, sug, keep, sm) => { const k = cat(id);
+  return `<button class="pick${sug ? " sug" : ""}${sm ? " sm" : ""}" style="--c:${k.color}" data-visit="${esc(visit)}" data-label="${id}"${keep ? ` data-keep="1"` : ""} aria-pressed="${!!pressed}"><img src="${k.photo}" alt="">${esc(k.name)}</button>`; };
+// a best guess is an unsorted visit whose top cat is 75%+; below that it is a toss-up
+const LIKELY = 0.75;
+const guessOf = v => v.state === "unsure" && v.options?.[0]?.p >= LIKELY ? v.options[0] : null;
+const pct = p => `${Math.max(1, Math.min(99, Math.round(p * 100)))}%`;
+const whyHtml = w => w?.length ? `<ul class="why">${w.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+const checks = () => S.visits.filter(v => v.check);
+const photosOf = v => (v.crops.length ? v.crops : v.frames).map(f => f.url);
+
+let reviewShown = 5, showGuesses = false;
+// every unsorted visit (listed with its best guess); toSort = the ones nobody has looked at yet (asked in "Who's this?")
+const unsorted = () => [...S.visits.filter(v => v.state === "unsure"), ...(S.omitted || []).map(v => ({ ...v, crops: [], frames: [] }))]
+  .sort((a, b) => (!!guessOf(a) - !!guessOf(b)) || b.end - a.end);   // toss-ups first
+const toSort = () => unsorted().filter(v => !v.reviewed);
+function askHtml() {
+  const qs = toSort(), ck = checks();
+  let html = ck.length ? `<div class="panel" id="recheck"><div class="ph"><div class="ic">${ICON.help}</div><div><h2>Double-check</h2><small>${ck.length} ${ck.length === 1 ? "tap looks" : "taps look"} like a different cat · tap the right one</small></div></div>${ck.map(checkItem).join("")}</div>` : "";
+  if (!qs.length) return html;
+  // only real toss-ups ask anything; confident best guesses wait behind a button (no homework for anyone)
+  const toss = qs.filter(v => !guessOf(v)), guesses = qs.filter(guessOf);
+  const pool = showGuesses ? [...toss, ...guesses] : toss;
+  const shown = pool.slice(0, reviewShown);
+  const sub = toss.length ? `${toss.length} to sort · one tap each` : "Nothing to sort right now";
+  const gbtn = guesses.length ? `<div class="picks" style="margin-top:14px"><button class="pick plain" id="guesses">${showGuesses ? "Hide best guesses" : `Check ${guesses.length} best ${guesses.length === 1 ? "guess" : "guesses"} (optional)`}</button></div>` : "";
+  return html + `<div class="panel" id="review"><div class="ph"><div class="ic">${ICON.help}</div><div><h2>Who's this?</h2><small>${sub}</small></div></div>
+    ${shown.map(askItem).join("")}
+    ${pool.length > shown.length ? `<div class="picks" style="margin-top:14px"><button class="pick plain" id="more">Show ${Math.min(5, pool.length - shown.length)} more</button></div>` : ""}${gbtn}</div>`;
+}
+function askItem(v) {
+  const pics = photosOf(v).slice(0, 3);
+  const wt = v.weight ? `<span class="wt">${v.weight.toFixed(1)}<small>lb</small></span>` : "";
+  return `<div class="ask">${pics.length ? `<div class="pics">${pics.map(u => `<img src="${u}" alt="" loading="lazy">`).join("")}</div>` : ""}
+    <div class="q">${wt}${esc(place(v.robot))} box <span>· ${dayLabel(v.end)} ${hm(v.end)}${v.duration ? ` · ${mins(v.duration)}` : ""}</span></div>
+    ${v.options[0] ? `<p class="guessline">${guessOf(v) ? "Probably" : "Not sure. Maybe"} <b>${esc(cat(v.options[0].cat).name)}</b> (${pct(v.options[0].p)})</p>${whyHtml(v.why)}` : ""}
+    <div class="picks">${v.options.map((o, i) => pickBtn(v.id, o.cat, false, i === 0 && guessOf(v))).join("")}</div>
+    <div class="picks sm" style="margin-top:8px">${S.cats.filter(c => !v.options.some(o => o.cat === c.id)).map(c => pickBtn(v.id, c.id, false, false, false, true)).join("")}
+    <button class="pick plain sm" data-visit="${esc(v.id)}" data-label="none">Not a cat</button>
+    ${v.reviewed ? "" : `<button class="pick plain sm" data-skip="${esc(v.id)}">Skip</button>`}</div></div>`;
+}
+
+function checkItem(v) {
+  const c = v.check, mine = cat(v.cat), other = cat(c.cat);
+  const wt = v.weight ? `<span class="wt">${v.weight.toFixed(1)}<small>lb</small></span>` : "";
+  return `<div class="ask"><div class="q">${wt}${esc(place(v.robot))} box <span>· ${dayLabel(v.end)} ${hm(v.end)}${v.duration ? ` · ${mins(v.duration)}` : ""}</span></div>
+    <p class="guessline">Tapped <b>${esc(mine.name)}</b>, but it looks like <b>${esc(other.name)}</b> ${pct(c.p)}</p>${whyHtml(c.why)}
+    <div class="picks">${pickBtn(v.id, v.cat, true, false, true)}${S.cats.filter(k => k.id !== v.cat).map(k => pickBtn(v.id, k.id, false, k.id === c.cat)).join("")}
+    <button class="pick plain" data-visit="${esc(v.id)}" data-label="none">Not a cat</button></div></div>`;
+}
+function guessRowHtml(v) {
+  const g = guessOf(v), c = cat(g.cat), isOpen = open.has(v.id);
+  return `<article class="visit" data-sortrow="${esc(v.id)}" style="--c:${c.color}"><div class="row" data-sort="${esc(v.id)}" tabindex="0" role="button" aria-expanded="${isOpen}">
+    <img class="av guess" src="${c.photo}" alt=""><div class="tx"><b>${esc(c.name)}</b><span class="tag">best guess ${pct(g.p)}</span><span class="place">${esc(place(v.robot))}</span><small>${[hm(v.end), v.weight ? `${v.weight.toFixed(1)} lb` : "", mins(v.duration), v.reviewed ? "" : "tap to confirm"].filter(Boolean).join(" · ")}</small></div></div>
+    ${isOpen ? `<div class="detail">${askItem(v)}</div>` : ""}</article>`;
+}
+
+function howText(v) {
+  if (v.state === "confirmed") return `${v.label_by ? esc(v.label_by) : "Someone"} confirmed it`;
+  const bits = [];
+  if (v.how.includes("before the move")) bits.push("who lived here then");
+  if (v.how.includes("night routine")) bits.push("the night routine");
+  if (v.how.includes("camera")) bits.push("the camera");
+  if (v.how.includes("weight")) bits.push(`weight on the ${place(v.robot).toLowerCase()} box`);
+  if (v.how.includes("time in the box")) bits.push("time in the box");
+  return bits.length ? `Known by ${list(bits)}` : "";
+}
+
+function visitHtml(v, ask) {
+  const c = cat(v.cat), isOpen = open.has(v.id), pics = photosOf(v);
+  const sub = [hm(v.end), v.weight ? `${v.weight.toFixed(1)} lb` : "", mins(v.duration)].filter(Boolean).join(" · ");
+  const check = v.state === "confirmed" ? ` <span class="ok-dot" title="Confirmed">✓</span>` : "";
+  let detail = "";
+  if (isOpen) {
+    const crops = v.crops.length ? `<div class="photos crops">${v.crops.map(f => `<figure><img src="${f.url}" alt="${esc(c.name)} at ${hms(f.ts)}" loading="lazy"><figcaption>${hms(f.ts)}</figcaption></figure>`).join("")}</div>` : "";
+    const frames = !v.crops.length && v.frames.length ? `<div class="photos">${v.frames.map(f => `<figure><img src="${f.url}" alt="" loading="lazy"><figcaption>${f.kind === "in" ? "Going in · " : f.kind === "out" ? "Coming out · " : ""}${hms(f.ts)}</figcaption></figure>`).join("")}</div>` : "";
+    const vids = v.clips || (v.clip ? [v.clip] : []);
+    const clip = vids.map(u => `<video src="${u}" controls playsinline preload="metadata"></video>`).join("");
+    const missed = vids.length && !v.crops.length && !v.frames.length ? `${esc(c.name)} didn't walk past the camera this time` : "";
+    const facts = [`${hm(v.start)} to ${hm(v.end)}`, v.weight ? `${v.weight.toFixed(1)} lb` : "",
+      v.state === "sure" && v.conf < 0.9995 ? `${pct(v.conf)} sure` : "", howText(v), missed].filter(Boolean).join(" · ");
+    detail = `<div class="detail">${crops}${frames}${clip}<div class="facts">${facts}</div>
+      <div class="eyebrow" style="margin-bottom:8px">${ask ? "Who was it?" : "Not right? It was"}</div>
+      <div class="picks sm">${S.cats.filter(k => ask || k.id !== v.cat).map(k => pickBtn(v.id, k.id, ask && v.state === "confirmed" && k.id === v.cat, ask && k.id === v.cat, false, true)).join("")}<button class="pick plain sm" data-visit="${esc(v.id)}" data-label="none">Not a cat</button></div></div>`;
+  }
+  return `<article class="visit" data-id="${esc(v.id)}" style="--c:${c.color}"><div class="row" tabindex="0" role="button" aria-expanded="${isOpen}">
+    <img class="av" src="${c.photo}" alt=""><div class="tx"><b>${esc(c.name)}</b>${check}${v.check ? `<span class="tag">double-check</span>` : ""}<span class="place">${esc(place(v.robot))}</span><small>${sub}</small></div>
+    ${!isOpen && pics.length ? `<img class="th" src="${pics[0]}" alt="" loading="lazy">` : ""}</div>${detail}</article>`;
+}
+
+function pinnedHtml() {
+  const vs = pinned.map(id => S.visits.find(v => v.id === id)).filter(Boolean).sort((a, b) => a.end - b.end);
+  if (!vs.length) return "";
+  let html = "", lastDay = "";
+  for (const v of vs) {
+    if (dayKey(v.end) !== lastDay) { lastDay = dayKey(v.end); html += `<div class="day eyebrow">${dayLabel(v.end)}</div>`; }
+    html += v.state === "unsure" ? (guessOf(v) ? guessRowHtml(v) : sortRowHtml(v)) : visitHtml(v, true);
+  }
+  return `<div class="panel"><div class="ph"><div class="ic">${ICON.eye}</div><div><h2>Visits to check</h2><small>${vs.length} ${vs.length === 1 ? "visit" : "visits"} · tap the cat it was</small></div></div>
+    ${html}<button class="pick plain sm" id="unpin" style="margin-top:12px">Done</button></div>`;
+}
+
+function visitText(v) {
+  // everything a person might type to find a visit
+  const d = new Date(v.end * 1000);
+  const g = guessOf(v);
+  const who = g ? `${cat(g.cat).name} best guess likely unsorted` : v.state === "unsure" ? `${v.options.map(o => cat(o.cat).name).join(" or ")} to sort unsorted toss-up` : `${cat(v.cat).name}${v.state === "confirmed" ? " confirmed" : ""}${v.check ? " double-check" : ""}`;
+  return [who, place(v.robot), v.robot, dayLabel(v.end),
+    d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }), d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
+    `${d.getMonth() + 1}/${d.getDate()}`, hm(v.end), hm(v.end).replace(/\s/g, ""), v.weight ? `${v.weight.toFixed(1)} lb ${v.weight.toFixed(2)}` : "",
+    mins(v.duration), v.crops?.length || v.frames?.length ? "photo photos camera" : "", v.clip ? "video clip" : ""].join(" ").toLowerCase();
+}
+
+function todayHtml(m0, nSort) {
+  // midnight-to-midnight strip: every visit today is its cat's face at its time; unsorted ones are a dashed "?"
+  const items = [...S.visits.filter(v => v.end >= m0 && v.state !== "unsure").map(v => ({ v, c: cat(v.cat) })),
+                 ...unsorted().filter(v => v.end >= m0).map(v => ({ v, c: guessOf(v) ? cat(guessOf(v).cat) : null, g: true }))].sort((a, b) => a.v.end - b.v.end);
+  const lanes = [];
+  const dots = items.map(({ v, c, g }) => {
+    const x = Math.min(99, Math.max(1, (v.end - m0) / 864));
+    let lane = lanes.findIndex(last => x - last >= 7);
+    if (lane < 0) { lane = lanes.length < 2 ? lanes.length : lanes.indexOf(Math.min(...lanes)); }
+    lanes[lane] = x;
+    const top = lane === 0 ? 30 : 0, col = c ? c.color : "var(--ink-3)";
+    const face = c ? `<img src="${c.photo}" alt="">` : "?";
+    const title = `${c ? c.name + (g ? " (best guess)" : "") : "To sort"} · ${place(v.robot)} · ${hm(v.end)}`;
+    return `<div class="stem" style="--c:${col};left:${x}%;top:${top + 28}px"></div>
+      <div class="dotv ${c ? (g ? "g" : "") : "q"}" style="--c:${col};left:${x}%;top:${top}px" title="${esc(title)}" role="img" aria-label="${esc(title)}">${face}</div>`;
+  }).join("");
+  const nowX = Math.min(100, (S.now - m0) / 864);
+  const r = HOUSE_NIGHT;
+  const night = r ? `<div class="night" style="left:${r[0]}%;width:${r[1] - r[0]}%" title="Night routine"></div>` : "";
+  const upd = S.health?.whisker_sync ? `Updated ${ago(S.health.whisker_sync)}` : "";
+  return `<div class="track"><div class="rail"></div>${night}<div class="now" style="left:${nowX}%"></div>${dots}</div>
+    <div class="hours"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>12a</span></div>
+    <div class="todayfoot">${nSort ? `<button class="sortbtn" id="gosort"><b>${nSort}</b> to sort</button>` : `<span class="updated">All sorted</span>`}<span class="updated">${upd}</span></div>`;
+}
+const HOUSE_NIGHT = [0.25 / 24 * 100, 8.75 / 24 * 100];   // night routine window, shaded on the strip
+
+function sortRowHtml(v) {
+  const isOpen = open.has(v.id), names = v.options.map(o => cat(o.cat).name);
+  return `<article class="visit" data-sortrow="${esc(v.id)}" style="--c:var(--ink-3)"><div class="row" data-sort="${esc(v.id)}" tabindex="0" role="button" aria-expanded="${isOpen}">
+    <div class="av" style="display:grid;place-items:center;border-style:dashed;font:800 18px Archivo,sans-serif;color:var(--ink-3)">?</div>
+    <div class="tx"><b>${esc(names.join(" or "))}?</b><span class="place">${esc(place(v.robot))}</span><small>${v.weight ? `<b style="font:800 14px Archivo,Inter,sans-serif;color:var(--ink)">${v.weight.toFixed(1)} lb</b> · ` : ""}${hm(v.end)}${v.duration ? ` · ${mins(v.duration)}` : ""}${v.options[0] ? ` · leans ${esc(cat(v.options[0].cat).name)} ${pct(v.options[0].p)}` : ""} · tap to sort</small></div></div>
+    ${isOpen ? `<div class="detail">${askItem(v)}</div>` : ""}</article>`;
+}
+
+const napUI = {};   // "who|start|end" -> true (armed: tap again) | "sent"
+async function napWrong(nk) {
+  const [who, start, end] = nk.split("|");
+  napUI[nk] = "sent"; render();
+  try {
+    const res = await fetch("/api/nap-wrong", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ who, start: +start, end: +end, by: store.get("catbox-name") }) });
+    if (res.status === 401) { location.reload(); return; }
+    if (!res.ok) throw new Error(await res.text());
+    const w = S.naps.who[who];
+    if (w) { w.naps = w.naps.filter(n => !(n.start === +start && n.end === +end)); if (!w.naps.length) delete S.naps.who[who]; }
+  } catch (e) { console.warn("nap remove failed", e); }
+  delete napUI[nk]; render();
+}
+function bindNaps() {
+  document.querySelectorAll("[data-napwrong]").forEach(b => b.onclick = () => {
+    const nk = b.dataset.napwrong;
+    if (napUI[nk] === true) { clearTimeout(napUI["t" + nk]); napWrong(nk); return; }
+    napUI[nk] = true; render();
+    napUI["t" + nk] = setTimeout(() => { if (napUI[nk] === true) { delete napUI[nk]; render(); } }, 4000);
+  });
+}
+
+function spottedHtml() {
+  // Naps are part of Spotted, and a pet seen several times minutes apart is one entry (the server
+  // condenses sightings; a nap is already one stretch)
+  const N = S.naps, day = S.now - 86400;
+  const naps = N ? Object.entries(N.who).flatMap(([id, w]) => w.naps.filter(n => n.end >= day || n.live).map(n => ({ nap: true, who: id, ...n }))) : [];
+  const L = [...(S.sightings || []).map(x => ({ ...x, end: x.end || x.ts })), ...naps].sort((a, b) => b.end - a.end);
+  const sub = N?.cams?.length && N?.last_check ? `Pets on camera away from the boxes, and naps · upstairs looks for naps every ${N.interval_min} min` : "Pets on camera away from the boxes · last 24 hours";
+  if (!L.length) return N?.cams?.length ? `<div class="panel"><div class="ph"><div class="ic">${ICON.eye}</div><div><h2>Spotted</h2><small>${sub}</small></div></div><p class="muted">Nobody yet today.</p></div>` : "";
+  const span = (a, b) => b - a >= 60 ? `${hm(a)} to ${hm(b)}` : hm(a);
+  return `<div class="panel"><div class="ph"><div class="ic">${ICON.eye}</div><div><h2>Spotted</h2><small>${sub}</small></div></div>
+    <div class="strip">${L.map(x => {
+      const p = pet(x.who), name = p ? p.name : x.species === "dog" ? "A dog" : "A cat";
+      const img = `<img src="${x.crop}" alt="${esc(name)}" loading="lazy">`;
+      if (x.nap) {
+        const nk = `${x.who}|${x.start}|${x.end}`, st = napUI[nk];
+        const when = x.live ? `<span class="live">Napping now</span> since ${hm(x.start)}` : `Napped ${span(x.start, x.end)}`;
+        return `<figure>${x.crop ? `<a href="${x.crop}" target="_blank" rel="noopener" aria-label="See ${esc(name)} napping, bigger">${img}<span class="play">${ICON.moon}</span></a>` : ""}
+          <figcaption><b>${esc(name)}</b>${when} · Upstairs</figcaption>
+          <button class="napwrong${st === true ? " armed" : ""}" data-napwrong="${esc(nk)}" ${st === "sent" ? "disabled" : ""}>${st === true ? "Tap again" : st === "sent" ? "Removing…" : `Not ${esc(name)}?`}</button></figure>`;
+      }
+      const times = x.n > 1 ? `${span(x.start, x.end)} · seen ${x.n} times` : hm(x.ts);
+      return `<figure>${x.clip ? `<a href="${x.clip}" target="_blank" rel="noopener" aria-label="Play ${esc(name)}'s clip">${img}<span class="play">${ICON.play}</span></a>` : `<div class="ph-img">${img}</div>`}
+        <figcaption><b>${esc(name)}</b>${esc(x.cam.replace(" camera", ""))} · ${times}</figcaption></figure>`;
+    }).join("")}</div></div>`;
+}
+
+// One cat at a glance (tap its card): where it goes, how often, when, its weight per box, and its habits.
+// Sure and confirmed visits count; best guesses are shown lighter and named as such.
+function catPanelHtml(c) {
+  const DAY = 86400, now = S.now, m0 = midnight();
+  const sure = S.visits.filter(v => v.cat === c.id && v.state !== "unsure").map(v => ({ v, g: false })).sort((a, b) => a.v.end - b.v.end);
+  const likely = unsorted().filter(v => guessOf(v)?.cat === c.id).map(v => ({ v, g: true }));
+  const all = [...sure, ...likely].sort((a, b) => a.v.end - b.v.end);
+  // every box the house has, even one this cat never used; fixed box colours so cats compare at a glance
+  const boxes = Object.keys(S.places || {}).length ? Object.keys(S.places) : [...new Set(all.map(x => x.v.robot))];
+  const tone = r => `var(--box-${boxes.indexOf(r) % 2 + 1})`;
+  const swatch = r => `<i class="sw" style="background:${tone(r)}"></i>`;
+  const inRange = (a, b) => all.filter(x => x.v.end >= a && x.v.end < b);
+  const nGuess = xs => xs.filter(x => x.g).length;
+  const plural = (n, w, ws) => `${n} ${n === 1 ? w : ws || w + "s"}`;
+  if (!all.length) return `<div class="panel catp" style="--c:${c.color}"><div class="eyebrow">${esc(c.name)}</div><p class="muted">No visits yet.</p></div>`;
+
+  // only count from the day every box has records (an LR4's cloud keeps ~6 days, so a new install starts late)
+  const firstBy = r => Math.min(now, ...[...S.visits, ...(S.omitted || [])].filter(v => v.robot === r).map(v => v.end));
+  const firstDay = all[0].v.end;
+  const covered = Math.max(firstDay, ...boxes.map(firstBy));
+  // headline: today vs a normal day (the last 7 full days with every box recording)
+  const fullDays = Math.max(1, Math.min(7, Math.floor((m0 - covered) / DAY)));
+  const today = inRange(m0, now + 1), week = inRange(m0 - fullDays * DAY, m0);
+  const usual = week.length / fullDays;
+  const last = sure.length ? sure[sure.length - 1].v : null;
+  const head = `<div class="cp-head"><img src="${c.photo}" alt=""><div><div class="eyebrow">${esc(c.name)}</div>
+    <div class="cp-big">${today.length}<small> today</small></div>
+    <div class="muted">A normal day is about <b>${usual.toFixed(1)}</b> visits${last ? ` · last ${ago(last.end)}, ${esc(place(last.robot).toLowerCase())}` : ""}</div></div></div>`;
+
+  // where: per box, 7 and 30 days
+  const where = [7, 30].map(d => {
+    const xs = inRange(now - d * DAY, now + 1), tot = xs.length || 1;
+    const segs = boxes.map(r => { const n = xs.filter(x => x.v.robot === r).length; return n ? `<span style="width:${n / tot * 100}%;background:${tone(r)}"></span>` : ""; }).join("");
+    const words = boxes.map(r => { const n = xs.filter(x => x.v.robot === r).length; return `${swatch(r)}${esc(place(r))} <b>${n}</b>`; }).join(" · ");
+    return `<div class="cp-row"><div class="cp-lab">Last ${d} days · ${plural(xs.length, "visit")}</div><div class="split">${segs}</div><div class="cp-words">${words}${nGuess(xs) ? ` <span class="faint">(incl. ${plural(nGuess(xs), "best guess", "best guesses")})</span>` : ""}</div></div>`;
+  }).join("");
+
+  // by day: 14 days, stacked by box, best guesses lighter
+  const days = 14, W = 320, H = 92, top = 14, base = H - 16, bw = W / days;
+  const cols = Array.from({ length: days }, (_, i) => { const d0 = m0 - (days - 1 - i) * DAY; return inRange(d0, d0 + DAY); });
+  const max = Math.max(3, ...cols.map(x => x.length));
+  const bars = cols.map((xs, i) => {
+    let y = base, out = "";
+    for (const r of boxes) for (const g of [false, true]) {
+      const n = xs.filter(x => x.v.robot === r && x.g === g).length; if (!n) continue;
+      const h = n / max * (base - top); y -= h;
+      out += g ? `<rect x="${i * bw + 4}" y="${y + 1}" width="${bw - 8}" height="${Math.max(0, h - 2)}" fill="none" stroke="${tone(r)}" stroke-width="2" stroke-dasharray="3 2"/>`
+               : `<rect x="${i * bw + 3}" y="${y}" width="${bw - 6}" height="${h}" fill="${tone(r)}"/>`;
+    }
+    return out + (xs.length ? `<text x="${i * bw + bw / 2}" y="${y - 4}" text-anchor="middle">${xs.length}</text>` : "");
+  }).join("");
+  const lab = i => { const d = new Date((m0 - (days - 1 - i) * DAY) * 1000); return d.toLocaleDateString([], { month: "short", day: "numeric" }); };
+  const daily = `<div class="cp-row"><div class="cp-lab">By day</div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.name)} visits per day, by box">${bars}
+    <text x="2" y="${H - 2}">${lab(0)}</text><text x="${W / 2}" y="${H - 2}" text-anchor="middle">${lab(7)}</text><text x="${W - 2}" y="${H - 2}" text-anchor="end">Today</text></svg>
+    <div class="cp-words">${boxes.map(r => `${swatch(r)}${esc(place(r))}`).join(" · ")}${likely.length ? ` · <span class="faint">dashed = best guess</span>` : ""}</div></div>`;
+
+  // when: four parts of the day, last 14 days
+  const parts = [["Night", 0, 6], ["Morning", 6, 12], ["Afternoon", 12, 18], ["Evening", 18, 24]];
+  const recent = inRange(m0 - 13 * DAY, now + 1), rt = recent.length || 1;
+  const when = `<div class="cp-row"><div class="cp-lab">When · last 14 days</div><div class="parts">${parts.map(([nm, a, b]) => {
+      const n = recent.filter(x => { const h = new Date(x.v.end * 1000).getHours(); return h >= a && h < b; }).length;
+      return `<div><div class="pbar"><span style="height:${Math.max(4, n / rt * 100)}%;background:${c.color}"></span></div><b>${Math.round(n / rt * 100)}%</b><small>${nm}</small></div>`;
+    }).join("")}</div></div>`;
+
+  // weight per box: this week vs last week (known visits only), plus a 30-day line
+  const med = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
+  const wrows = boxes.map(r => {
+    const pts = sure.filter(x => x.v.robot === r && x.v.weight && x.v.end >= now - 30 * DAY).map(x => [x.v.end, x.v.weight]);
+    if (!pts.length) return "";
+    const thisW = med(pts.filter(p => p[0] >= now - 7 * DAY).map(p => p[1])), lastW = med(pts.filter(p => p[0] < now - 7 * DAY && p[0] >= now - 14 * DAY).map(p => p[1]));
+    const d = thisW != null && lastW != null ? thisW - lastW : null;
+    const trend = d == null ? "" : Math.abs(d) < 0.15 ? "steady vs last week" : `${d > 0 ? "up" : "down"} ${Math.abs(d).toFixed(1)} lb vs last week`;
+    const ws = pts.map(p => p[1]), lo = Math.min(...ws) - 0.1, hi = Math.max(...ws) + 0.1, t0 = now - 30 * DAY, SW = 120, SH = 30;
+    const line = pts.map(p => `${((p[0] - t0) / (30 * DAY) * SW).toFixed(1)},${(SH - (p[1] - lo) / (hi - lo) * SH).toFixed(1)}`).join(" ");
+    return `<div class="wrow">${swatch(r)}<span>${esc(place(r))}</span><b>${(thisW ?? med(ws)).toFixed(1)} lb</b><small>${trend}</small>
+      <svg viewBox="0 0 ${SW} ${SH}" class="spark" aria-hidden="true"><polyline points="${line}" fill="none" stroke="${tone(r)}" stroke-width="2" stroke-linejoin="round"/></svg></div>`;
+  }).join("");
+  const shift = S.scale_shift ? ` The upstairs scale reads about ${S.scale_shift.toFixed(1)} lb lighter than downstairs, so each box is shown as it reads.` : "";
+  const weight = wrows ? `<div class="cp-row"><div class="cp-lab">Weight${c.lb ? ` · ${c.lb.toFixed(1)} lb on the downstairs scale` : ""}</div>${wrows}<small class="muted">${esc(shift.trim())}</small></div>` : "";
+
+  // habits: time inside, gaps between visits
+  const durs = sure.map(x => x.v.duration).filter(Boolean);
+  const ends = all.filter(x => x.v.end >= Math.max(now - 14 * DAY, covered)).map(x => x.v.end);
+  let gap = 0, gapAt = 0;
+  for (let i = 1; i < ends.length; i++) if (ends[i] - ends[i - 1] > gap) { gap = ends[i] - ends[i - 1]; gapAt = ends[i]; }
+  const hrs = s => s >= 5400 ? `${Math.round(s / 3600)} hr` : `${Math.round(s / 60)} min`;
+  const habits = `<div class="cp-row"><div class="cp-lab">Habits</div><div class="cp-words">
+    ${durs.length ? `Usually <b>${mins(med(durs))}</b> inside` : ""}${gap ? ` · longest stretch without a visit <b>${hrs(gap)}</b> (ended ${new Date(gapAt * 1000).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })})` : ""}${last ? ` · now <b>${hrs(now - last.end)}</b> since the last` : ""}</div></div>`;
+
+  // honest coverage note: a box whose history starts late (Whisker keeps ~6 days for an LR4)
+  const late = boxes.filter(r => firstBy(r) > firstDay + DAY && firstBy(r) < now);
+  const note = late.length ? `<p class="faint" style="margin:8px 0 0">${late.map(r => `${esc(place(r))} records start ${new Date(firstBy(r) * 1000).toLocaleDateString([], { month: "short", day: "numeric" })}`).join("; ")}, so earlier days there look empty.</p>` : "";
+  return `<div class="panel catp" style="--c:${c.color}">${head}${where}${daily}${when}${weight}${habits}${note}</div>`;
+}
+
+// ---- box controls: the same buttons as Whisker's app, for anyone with the family code ----
+const boxUI = { open: new Set(store.get("catbox-boxopen").split(",").filter(Boolean)), busy: new Set(), armed: {}, err: {} };
+const OPS = { clean: "Clean now", night_light: "Night light", panel_lock: "Button lock", wait: "Wait time", reset_drawer: "Drawer emptied" };
+const opText = c => c.op === "night_light" ? `Night light ${String(c.value).toLowerCase()}` : c.op === "panel_lock" ? (c.value ? "Buttons locked" : "Buttons unlocked")
+  : c.op === "wait" ? `Wait set to ${c.value} min` : OPS[c.op] || c.op;
+// The box and feeder buttons sit folded at the bottom: the page is shared with family who come to see the cats.
+// Open or closed is remembered per phone, and /#controls opens it and scrolls there.
+const ctlOpen = () => store.get("catbox-controls") === "1";
+function setControls(on, scroll) {
+  store.set("catbox-controls", on ? "1" : "");
+  $("#ctl-toggle").setAttribute("aria-expanded", String(on));
+  $("#ctl-body").hidden = !on;
+  if (scroll) $("#controls").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("#ctl-toggle").onclick = () => setControls(!ctlOpen());
+let ctlJump = location.hash === "#controls";
+setControls(ctlOpen() || ctlJump);
+window.addEventListener("hashchange", () => { if (location.hash === "#controls") setControls(true, true); });
+function controlsHtml() {
+  // anything that needs a person shows on the folded row, so closing it never hides a problem
+  const warn = [...(S.robots || []).flatMap(r => !r.online ? [`${place(r.key)} box offline`]
+      : r.drawer >= 80 ? [`${place(r.key)} drawer ${Math.round(r.drawer)}% full`] : []),
+    ...(S.feeder?.online === false ? ["Feeder offline"] : [])];
+  const sub = warn.length ? warn.join(" · ") : "Clean the boxes, change meals";
+  return `<span class="ph"><span class="ic">${ICON.box}</span><span><span class="h">Boxes and feeder</span><small class="${warn.length ? "hot" : ""}">${esc(sub)}</small></span></span>
+    <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`;
+}
+function boxesHtml() {
+  const robots = S.robots || [];
+  if (!robots.length) return "";
+  const order = Object.keys(S.places || {});
+  const rows = [...robots].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)).map(r => {
+    const bc = `var(--box-${Math.max(0, order.indexOf(r.key)) % 2 + 1})`, k = r.key, busy = boxUI.busy.has(k);
+    const st = !r.online ? "Offline" : r.cat_inside ? "Cat inside" : r.busy ? "Cleaning" : r.timing ? `Cleans after the ${r.wait || "?"} min wait` : r.sleeping ? "Sleeping" : r.status;
+    const bits = [st, r.drawer != null ? `drawer ${Math.round(r.drawer)}% full` : "", r.litter != null ? `litter ${Math.round(r.litter)}%` : ""].filter(Boolean);
+    const hot = !r.online || r.drawer >= 80;
+    const can = r.online && !r.cat_inside && !r.busy && !busy;
+    const cleanLabel = busy && boxUI.armed[k] === "sent" ? "Sending…" : r.cat_inside ? "Cat inside" : r.busy ? "Cleaning…" : boxUI.armed[k] === true ? "Tap again to clean" : "Clean now";
+    const seg = (op, opts, cur) => `<div class="seg" role="group">${opts.map(([v, l]) =>
+      `<button type="button" data-box="${k}" data-op="${op}" data-v='${JSON.stringify(v)}' aria-pressed="${cur === v}" ${busy || !r.online ? "disabled" : ""}>${l}</button>`).join("")}</div>`;
+    const set = boxUI.open.has(k) ? `<div class="bx-set">
+      ${r.night_light ? `<div><span>Night light</span>${seg("night_light", [["OFF", "Off"], ["AUTO", "Auto"], ["ON", "On"]], r.night_light)}</div>` : ""}
+      ${r.panel_lock != null ? `<div><span>Buttons on the box</span>${seg("panel_lock", [[false, "Work"], [true, "Locked"]], !!r.panel_lock)}</div>` : ""}
+      ${r.waits?.length ? `<div><span>Clean this many minutes after a cat leaves</span>${seg("wait", [...new Set([...r.waits, ...(r.wait ? [r.wait] : [])])].sort((a, b) => a - b).map(w => [w, String(w)]), r.wait)}</div>` : ""}
+      ${r.drawer_reset ? `<div><span>Drawer</span><div class="seg"><button type="button" data-box="${k}" data-op="reset_drawer" data-v="null" ${busy || !r.online ? "disabled" : ""}>I emptied it</button></div></div>` : ""}
+    </div>` : "";
+    const last = (S.controls || []).filter(c => c.robot === k && c.ok).slice(-1)[0];
+    return `<div class="bx" style="--bc:${bc}">
+      <div class="bx-head"><div class="tx"><b>${esc(place(k))} box</b><small class="${hot ? "hot" : ""}">${esc(bits.join(" · "))}</small></div>
+        <button type="button" class="cleanbtn ${boxUI.armed[k] === true ? "armed" : ""}" data-clean="${k}" ${can ? "" : "disabled"}>${cleanLabel}</button></div>
+      ${boxUI.err[k] ? `<p class="bx-err" role="alert">${esc(boxUI.err[k])}</p>` : ""}
+      ${set}
+      <button type="button" class="bx-more" data-boxopen="${k}" aria-expanded="${boxUI.open.has(k)}">${boxUI.open.has(k) ? "Hide settings" : "Settings"}</button>
+      ${last ? `<p class="bx-last">Last change: ${esc(opText(last))}${last.by ? ` by ${esc(last.by)}` : ""}, ${esc(ago(last.at))}</p>` : ""}
+    </div>`;
+  }).join("");
+  return `<div class="panel"><div class="ph"><div class="ic">${ICON.box}</div><div><h2>Boxes</h2><small>Clean and settings, same as the Whisker app</small></div></div>${rows}</div>`;
+}
+
+async function control(k, op, value) {
+  boxUI.busy.add(k); boxUI.err[k] = ""; if (op === "clean") boxUI.armed[k] = "sent";
+  const r = (S.robots || []).find(x => x.key === k);
+  const field = { night_light: "night_light", panel_lock: "panel_lock", wait: "wait" }[op];
+  const before = r && field ? r[field] : undefined;
+  if (r && field) r[field] = value;           // show it right away; put it back if the box says no
+  render();
+  try {
+    const res = await fetch("/api/control", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ robot: k, op, value, by: store.get("catbox-name") }) });
+    if (res.status === 401) { location.reload(); return; }
+    if (!res.ok) throw new Error((await res.text()) || "That didn't go through.");
+    const out = await res.json();
+    if (out.robot && S.robots) S.robots = S.robots.map(x => x.key === k ? out.robot : x);
+    (S.controls = S.controls || []).push({ robot: k, op, value, by: store.get("catbox-name") || null, at: Date.now() / 1000, ok: true });
+  } catch (e) {
+    if (r && field) r[field] = before;
+    boxUI.err[k] = String(e.message || e).slice(0, 160);
+  } finally {
+    boxUI.busy.delete(k); delete boxUI.armed[k]; render();
+  }
+}
+
+function bindBoxes() {
+  document.querySelectorAll("[data-clean]").forEach(b => b.onclick = () => {
+    const k = b.dataset.clean;
+    if (boxUI.armed[k] === true) { clearTimeout(boxUI["t" + k]); control(k, "clean", null); return; }
+    boxUI.armed[k] = true; boxUI.err[k] = ""; render();         // two taps, so a pocket or a toddler can't start a cycle
+    boxUI["t" + k] = setTimeout(() => { if (boxUI.armed[k] === true) { delete boxUI.armed[k]; render(); } }, 4000);
+  });
+  document.querySelectorAll("[data-op]").forEach(b => b.onclick = () => {
+    if (b.getAttribute("aria-pressed") === "true") return;
+    control(b.dataset.box, b.dataset.op, JSON.parse(b.dataset.v));
+  });
+  document.querySelectorAll("[data-boxopen]").forEach(b => b.onclick = () => {
+    const k = b.dataset.boxopen; boxUI.open.has(k) ? boxUI.open.delete(k) : boxUI.open.add(k);
+    store.set("catbox-boxopen", [...boxUI.open].join(",")); render();
+  });
+}
+
+// the feeder (feeder.py on the server): meals in local time, two taps to feed, the HGsmart app's settings
+const feederUI = { busy: false, armed: false, n: 1, err: "", edit: null, draft: null, quietOk: false, typing: false, open: store.get("catbox-fdopen") === "1" };
+const hhmm = t => { const [h, m] = t.split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
+const toMin = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const portions = n => `${n} ${n === 1 ? "portion" : "portions"}`;
+function inQuiet(t) {
+  const q = S.feeder?.quiet; if (!q?.from || !q?.to || !t) return false;
+  const x = toMin(t), a = toMin(q.from), b = toMin(q.to);
+  return a > b ? x >= a || x < b : x >= a && x < b;
+}
+function fdOpText(c) {
+  return { feed: `fed ${portions(c.portions || 1)}`, meal: `set a meal for ${c.time ? hhmm(c.time) : "?"}${c.on === false ? " (off)" : ""}`,
+    remove: "removed a meal", lock: c.on ? "locked its buttons" : "unlocked its buttons",
+    voice: c.value === "custom" ? "set the meal call to the recording" : "set the meal call to the built-in voice",
+    refill: "filled it up", desiccant: "put in new desiccant" }[c.op] || c.op;
+}
+
+function feederHtml() {
+  const F = S.feeder;
+  if (!F) return "";
+  const busy = feederUI.busy, dis = busy || F.online === false ? "disabled" : "";
+  const meals = (F.meals || []).filter(m => !m.empty).sort((a, b) => toMin(a.time) - toMin(b.time));
+  const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+  const on = meals.filter(m => m.on), next = on.find(m => toMin(m.time) > nowMin) || on[0];
+  const status = !F.ok && !F.meals ? "Can't reach the feeder right now" : F.online === false ? "Offline: meals won't drop until it's back"
+    : [F.online ? "Online" : "", F.lock ? "buttons locked" : "buttons work", next ? `next meal ${hhmm(next.time)}` : "no meals set"].filter(Boolean).join(" · ");
+  const feedLabel = busy && feederUI.armed === "sent" ? "Sending…" : feederUI.armed === true ? `Tap again to feed ${portions(feederUI.n)}` : "Feed now";
+  const pick = feederUI.armed === true ? `<div class="fd-pick"><span>How much?</span><div class="seg">${[1, 2, 3].map(n =>
+    `<button type="button" data-fn="${n}" aria-pressed="${feederUI.n === n}">${n}</button>`).join("")}</div></div>` : "";
+  const today = (F.today || []).map(e => `${hm(e.at)}${e.portions > 1 ? ` (${e.portions})` : ""}${e.scheduled ? "" : " by hand"}`);
+  const edit = slot => {
+    const d = feederUI.draft, quiet = inQuiet(d.time), isNew = (F.meals || []).find(m => m.slot === slot)?.empty;
+    return `<div class="meal-edit">
+      <div><span>Time</span><input type="time" id="fd-time" value="${esc(d.time)}" step="300" aria-label="Meal time"></div>
+      <div><span>How much</span><div class="seg"><button type="button" data-fp="-1" aria-label="Less" ${d.portions <= 1 ? "disabled" : ""}>−</button>
+        <button type="button" disabled aria-live="polite">${portions(d.portions)}</button><button type="button" data-fp="1" aria-label="More" ${d.portions >= 9 ? "disabled" : ""}>+</button></div></div>
+      ${quiet && feederUI.quietOk ? `<p class="note">That's in quiet hours (${hhmm(S.feeder.quiet.from)} to ${hhmm(S.feeder.quiet.to)}), and the feeder is loud. Tap Save again to keep it.</p>` : ""}
+      <div class="row2"><button type="button" class="cleanbtn" data-fsave="${slot}" ${dis}>${quiet && feederUI.quietOk ? "Save anyway" : "Save"}</button>
+        <div class="seg"><button type="button" data-fcancel>Cancel</button>${isNew ? "" : `<button type="button" data-fremove="${slot}" ${dis}>Remove</button>`}</div></div>
+    </div>`;
+  };
+  const rows = meals.map(m => feederUI.edit === m.slot ? edit(m.slot) : `<div class="meal ${m.on ? "" : "off"}">
+      <button type="button" class="mt" data-fedit="${m.slot}" aria-label="Change the ${hhmm(m.time)} meal"><b>${hhmm(m.time)}</b><small>${portions(m.portions)}${m.on ? "" : " · off"}</small></button>
+      <div class="seg"><button type="button" data-fon="${m.slot}" data-v="true" aria-pressed="${m.on}" ${dis}>On</button><button type="button" data-fon="${m.slot}" data-v="false" aria-pressed="${!m.on}" ${dis}>Off</button></div>
+    </div>`).join("");
+  const free = (F.meals || []).find(m => m.empty);
+  const add = feederUI.edit != null && free && feederUI.edit === free.slot ? edit(free.slot)
+    : free ? `<div class="seg addmeal"><button type="button" data-fadd="${free.slot}" ${dis}>Add a meal</button></div>` : "";
+  const set = feederUI.open ? `<div class="bx-set">
+      <div><span>Buttons on the feeder</span><div class="seg"><button type="button" data-fset="lock" data-v="false" aria-pressed="${!F.lock}" ${dis}>Work</button><button type="button" data-fset="lock" data-v="true" aria-pressed="${!!F.lock}" ${dis}>Locked</button></div></div>
+      <div><span>Meal call sound</span><div class="seg"><button type="button" data-fset="voice" data-v='"default"' aria-pressed="${F.voice !== "custom"}" ${dis}>Built-in voice</button><button type="button" data-fset="voice" data-v='"custom"' aria-pressed="${F.voice === "custom"}" ${dis}>Your recording</button></div></div>
+      <div><span>Food${F.food > 0 ? `: about ${Math.round(F.food)}% left` : ""}</span><div class="seg"><button type="button" data-fset="refill" data-v="null" ${dis}>I filled it up</button></div></div>
+      <div><span>Desiccant${F.desiccant_days > 0 ? `: ${F.desiccant_days} days left` : ""}</span><div class="seg"><button type="button" data-fset="desiccant" data-v="null" ${dis}>I put in a new one</button></div></div>
+    </div>` : "";
+  const last = (F.log || []).filter(c => c.ok).slice(-1)[0];
+  return `<div class="panel"><div class="ph"><div class="ic">${ICON.bowl}</div><div><h2>Feeder</h2><small>Meals and buttons, same as the HGsmart app</small></div></div>
+    <div class="bx" style="--bc:var(--box-1)">
+      <div class="bx-head"><div class="tx"><b>${esc(F.name || "Feeder")}</b><small class="${F.online === false || (!F.ok && !F.meals) ? "hot" : ""}">${esc(status)}</small></div>
+        <button type="button" class="cleanbtn ${feederUI.armed === true ? "armed" : ""}" data-ffeed ${dis}>${feedLabel}</button></div>
+      ${pick}
+      ${feederUI.err ? `<p class="bx-err" role="alert">${esc(feederUI.err)}</p>` : ""}
+      ${today.length ? `<p class="fd-today">Fed today: ${esc(today.join(" · "))}</p>` : ""}
+      <div class="meals">${rows}</div>${add}
+      <button type="button" class="bx-more" data-fdopen aria-expanded="${feederUI.open}">${feederUI.open ? "Hide settings" : "Settings"}</button>
+      ${set}
+      ${last ? `<p class="bx-last">Last change: ${esc(fdOpText(last))}${last.by ? ` by ${esc(last.by)}` : ""}, ${esc(ago(last.at))}</p>` : ""}
+    </div></div>`;
+}
+
+async function feederAct(op, body) {
+  feederUI.busy = true; feederUI.err = ""; render();
+  try {
+    const res = await fetch("/api/feeder", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ op, ...body, by: store.get("catbox-name") }) });
+    if (res.status === 401) { location.reload(); return false; }
+    if (!res.ok) throw new Error((await res.text()) || "That didn't go through.");
+    S.feeder = (await res.json()).feeder;
+    return true;
+  } catch (e) {
+    feederUI.err = String(e.message || e).slice(0, 160);
+    return false;
+  } finally {
+    feederUI.busy = false; render();
+  }
+}
+
+function bindFeeder() {
+  const q = s => document.querySelectorAll("#feeder " + s);
+  const disarm = () => { clearTimeout(feederUI.t); feederUI.t = setTimeout(() => { if (feederUI.armed === true) { feederUI.armed = false; render(); } }, 8000); };
+  q("[data-ffeed]").forEach(b => b.onclick = async () => {
+    if (feederUI.armed === true) { clearTimeout(feederUI.t); feederUI.armed = "sent"; await feederAct("feed", { portions: feederUI.n }); feederUI.armed = false; feederUI.n = 1; render(); return; }
+    feederUI.armed = true; feederUI.err = ""; render(); disarm();     // two taps, like Clean now
+  });
+  q("[data-fn]").forEach(b => b.onclick = () => { feederUI.n = +b.dataset.fn; render(); disarm(); });
+  q("[data-fedit]").forEach(b => b.onclick = () => { const m = S.feeder.meals.find(x => x.slot === +b.dataset.fedit);
+    feederUI.edit = m.slot; feederUI.draft = { time: m.time, portions: m.portions, on: m.on }; feederUI.quietOk = false; feederUI.err = ""; render(); });
+  q("[data-fadd]").forEach(b => b.onclick = () => { feederUI.edit = +b.dataset.fadd; feederUI.draft = { time: "12:00", portions: 1, on: true }; feederUI.quietOk = false; feederUI.err = ""; render(); });
+  q("#fd-time").forEach(i => {
+    i.onfocus = () => { feederUI.typing = true; };
+    i.oninput = () => { feederUI.draft.time = i.value; feederUI.quietOk = false; };
+    i.onblur = () => { feederUI.draft.time = i.value; feederUI.typing = false; };    // no redraw here: a redraw blurs it
+    i.onchange = () => { feederUI.draft.time = i.value; feederUI.quietOk = false; feederUI.typing = false; render(); };
+  });
+  q("[data-fp]").forEach(b => b.onclick = () => { const d = feederUI.draft; d.portions = Math.min(9, Math.max(1, d.portions + +b.dataset.fp)); render(); });
+  q("[data-fcancel]").forEach(b => b.onclick = () => { feederUI.edit = null; feederUI.draft = null; render(); });
+  q("[data-fsave]").forEach(b => b.onclick = async () => {
+    const d = feederUI.draft, slot = +b.dataset.fsave;
+    if (!d.time) { feederUI.err = "Pick a time first."; render(); return; }
+    if (inQuiet(d.time) && !feederUI.quietOk) { feederUI.quietOk = true; render(); return; }   // ask twice inside quiet hours
+    if (await feederAct("meal", { slot, time: d.time, portions: d.portions, on: d.on })) { feederUI.edit = null; feederUI.draft = null; render(); }
+  });
+  q("[data-fremove]").forEach(b => b.onclick = async () => {
+    if (await feederAct("remove", { slot: +b.dataset.fremove })) { feederUI.edit = null; feederUI.draft = null; render(); }
+  });
+  q("[data-fon]").forEach(b => b.onclick = () => {
+    if (b.getAttribute("aria-pressed") === "true") return;
+    const m = S.feeder.meals.find(x => x.slot === +b.dataset.fon), on = b.dataset.v === "true";
+    if (on && inQuiet(m.time) && feederUI.armedOn !== m.slot) { feederUI.armedOn = m.slot; feederUI.err = `The ${hhmm(m.time)} meal is in quiet hours. Tap On again to turn it on anyway.`; render(); return; }
+    feederUI.armedOn = null;
+    feederAct("meal", { slot: m.slot, time: m.time, portions: m.portions, on });
+  });
+  q("[data-fset]").forEach(b => b.onclick = () => {
+    if (b.getAttribute("aria-pressed") === "true") return;
+    const op = b.dataset.fset, v = JSON.parse(b.dataset.v);
+    feederAct(op, op === "lock" ? { on: v } : op === "voice" ? { value: v } : {});
+  });
+  q("[data-fdopen]").forEach(b => b.onclick = () => { feederUI.open = !feederUI.open; store.set("catbox-fdopen", feederUI.open ? "1" : ""); render(); });
+}
+
+function devicesHtml() {
+  const rows = [];
+  for (const c of S.cam?.cams || []) {
+    const low = c.battery != null && c.battery < 25;
+    rows.push([`<span class="dot ${!c.online ? "off" : low ? "low" : ""}"></span>${esc(c.label || c.name)}`, `${c.online ? "online" : "offline"}${c.battery != null && c.battery < 100 ? ` · battery ${c.battery}%` : ""}`]);
+  }
+  const ws = S.health?.whisker_sync;
+  rows.push(["Synced with Whisker", ws ? ago(ws) : "waiting"]);
+  return rows.map(([a, b]) => `<div class="dev"><span>${a}</span><span>${b}</span></div>`).join("");
+}
+
+async function label(id, catId, keep) {
+  const gone = catId === "none" || catId === "unknown";
+  const q = (S.omitted || []).find(x => x.id === id);
+  if (q) { S.omitted = S.omitted.filter(x => x.id !== id); if (!gone) S.visits.push({ ...q, crops: [], frames: [], clip: null, how: "", state: "confirmed", cat: catId, label_by: store.get("catbox-name") }); S.visits.sort((a, b) => b.end - a.end); }
+  const v = S.visits.find(x => x.id === id);
+  if (v && !q) {
+    if (gone) S.visits = S.visits.filter(x => x.id !== id);
+    else { v.state = "confirmed"; v.cat = catId; v.label_by = store.get("catbox-name"); v.check = null; }
+  }
+  open.delete(id); render();
+  await fetch("/api/label", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, cat: catId, by: store.get("catbox-name"), keep: !!keep }) });
+  load();
+}
+
+load();
+setInterval(() => { if (document.visibilityState === "visible") load(); }, 30000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") load(); });
+</script>
+</body>
+</html>

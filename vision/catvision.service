@@ -1,0 +1,15 @@
+[Unit]
+Description=Litter Log camera model (YOLO26 + SigLIP 2)
+After=network-online.target tailscaled.service
+
+[Service]
+WorkingDirectory=%h/catvision
+Environment=CATVISION_HOME=%h/catvision
+Environment=YOLO_OFFLINE=1
+ExecStart=%h/catvision/.venv/bin/python %h/catvision/vision.py
+Restart=always
+RestartSec=15
+Nice=10
+
+[Install]
+WantedBy=default.target

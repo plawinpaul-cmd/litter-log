@@ -1,0 +1,3 @@
+Vendored from github.com/Serjlee/HA_hgsmart-pet-feeder @ 31641393acef1a8cf739313de72cf23db3b9d240 (MIT). Files: api.py const.py helpers.py, unmodified.
+helpers.py: Home Assistant-only functions (api_locale_from_hass, api_timezone_from_hass, get_device_info) and their imports removed so it runs standalone.
+const.py: a gitleaks:allow comment on CLIENT_SECRET, the HGsmart app's public client constant (not a user credential).

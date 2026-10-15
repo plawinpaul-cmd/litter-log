@@ -1,0 +1,17 @@
+{
+  "name": "litter-log-ring",
+  "version": "1.0.0",
+  "description": "Ring sidecar for Litter Log: records clips of litter-box visits",
+  "scripts": {
+    "start": "node ring.mjs",
+    "auth": "node auth.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "dependencies": {
+    "ring-client-api": "^14.3.0"
+  },
+  "private": true
+}

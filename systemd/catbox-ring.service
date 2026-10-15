@@ -1,0 +1,15 @@
+[Unit]
+Description=Litter Log Ring sidecar (camera clips)
+After=network-online.target catbox.service
+
+[Service]
+WorkingDirectory=%h/catbox/ring
+Environment=CATBOX_HOME=%h/catbox
+ExecStart=/usr/local/bin/node %h/catbox/ring/ring.mjs
+Restart=always
+RestartSec=20
+TimeoutStopSec=75
+Nice=5
+
+[Install]
+WantedBy=default.target

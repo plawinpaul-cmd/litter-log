@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Litter Log</title>
+<meta name="description" content="Which cat used which litter box.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Litter Log">
+<meta name="theme-color" content="#14110E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #14110E; --surface: #1E1915; --border: #3A3027; --glass: rgba(255,248,238,.05); --glass-border: rgba(255,248,238,.16);
+  --ink: #FBF6EF; --ink-2: #C9B9A6; --ink-3: #95836F; --accent: #E8743B; --accent-2: #F2A65A; --on-accent: #1A0F08; --err: #F08A7A;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #FAF5EE; --surface: #FFFDF9; --border: #E2D4C3; --glass: rgba(42,30,21,.04); --glass-border: rgba(42,30,21,.14);
+    --ink: #2A1E15; --ink-2: #6B5A49; --ink-3: #7A6754; --accent: #C85A22; --accent-2: #E8743B; --on-accent: #FFFFFF; --err: #B4402E;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); }
+body { font: 16px/1.45 Inter, system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; display: grid; place-items: center; min-height: 100vh; padding: 24px 16px; }
+.card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 28px 22px; text-align: center; }
+.mark { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; margin: 0 auto 18px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.eyebrow { font: 700 12px/1 Archivo, Inter, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); }
+h1 { font: 900 30px/1.05 Archivo, Inter, sans-serif; letter-spacing: -.02em; margin: 10px 0 8px; }
+p { color: var(--ink-2); margin: 0 0 22px; }
+input { width: 100%; font: 700 28px/1 Inter, sans-serif; letter-spacing: .08em; text-align: center; padding: 14px 10px; border-radius: 16px; border: 1px solid var(--glass-border); background: var(--glass); color: var(--ink); outline: none; }
+input:focus { border-color: var(--accent); }
+button { width: 100%; margin-top: 14px; font: 700 17px/1 Inter, sans-serif; padding: 16px; border: 0; border-radius: 999px; color: var(--on-accent); background: linear-gradient(135deg, var(--accent), var(--accent-2)); cursor: pointer; }
+button:disabled { opacity: .6; }
+.err { color: var(--err); min-height: 22px; margin-top: 12px; font-size: 14px; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="mark" aria-hidden="true">
+    <svg width="34" height="34" viewBox="0 0 512 512" fill="#fff"><ellipse cx="256" cy="330" rx="98" ry="84"/><ellipse cx="150" cy="214" rx="40" ry="52" transform="rotate(-18 150 214)"/><ellipse cx="218" cy="150" rx="40" ry="54" transform="rotate(-6 218 150)"/><ellipse cx="294" cy="150" rx="40" ry="54" transform="rotate(6 294 150)"/><ellipse cx="362" cy="214" rx="40" ry="52" transform="rotate(18 362 214)"/></svg>
+  </div>
+  <div class="eyebrow">Litter Log</div>
+  <h1>Enter the family code</h1>
+  <p>Once on this device, and it remembers you.</p>
+  <form id="f">
+    <input id="code" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" maxlength="40" placeholder="family code" aria-label="Family code" autofocus>
+    <button id="go" type="submit">Open</button>
+    <div class="err" id="err" role="alert"></div>
+  </form>
+</main>
+<script>
+const f = document.getElementById("f"), code = document.getElementById("code"), go = document.getElementById("go"), err = document.getElementById("err");
+f.addEventListener("submit", async e => {
+  e.preventDefault();
+  go.disabled = true; err.textContent = "";
+  try {
+    const r = await fetch("/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: code.value }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok) { location.replace("/"); return; }
+    err.textContent = j.error || "That code didn't work.";
+    code.select();
+  } catch { err.textContent = "Can't reach the Litter Log right now."; }
+  go.disabled = false;
+});
+</script>
+</body>
+</html>

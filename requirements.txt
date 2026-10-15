@@ -1,0 +1,4 @@
+pylitterbot==2025.6.5
+aiohttp
+numpy
+pillow

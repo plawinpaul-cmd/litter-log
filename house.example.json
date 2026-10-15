@@ -1,0 +1,25 @@
+{
+  "places": { "lr4": "Downstairs", "evo": "Upstairs" },
+  "residents": [
+    { "cat": "mango", "since": "2026-01-15T18:00", "note": "before this, Mango didn't live here, so earlier visits can't be Mango" }
+  ],
+  "night_routine": {
+    "days": ["Sun", "Mon", "Tue", "Wed", "Thu"],
+    "from": "23:00",
+    "to": "07:00",
+    "evo_only": "luna",
+    "lr4_never": "luna",
+    "strength": 0.02,
+    "note": "only Luna can reach the upstairs box overnight; strength = how much less likely the others are then (a lean, not a wall)"
+  },
+  "old_account": {
+    "robot": "lr4",
+    "weights": { "luna": 9.0 },
+    "note": "optional: long-run weights from an older Whisker account, used only while a cat has fewer than 4 known visits on that box"
+  },
+  "feeder_quiet": {
+    "from": "23:00",
+    "to": "07:00",
+    "note": "optional: hours the feeder shouldn't run (it can be loud); the page asks twice before setting a meal inside them"
+  }
+}

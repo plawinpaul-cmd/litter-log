@@ -1,0 +1,9 @@
+torch
+transformers>=5.19
+ultralytics>=8.4
+huggingface_hub
+aiohttp
+pillow
+numpy
+sentencepiece
+protobuf

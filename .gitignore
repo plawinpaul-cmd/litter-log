@@ -1,0 +1,19 @@
+# secrets, data and household config never leave this machine
+secrets/
+data/
+media/
+cams.json
+pets.json
+house.json
+cats.json
+deploy.env
+app.env
+RUNBOOK.local.md
+# build and runtime clutter
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+bench/key
+/key

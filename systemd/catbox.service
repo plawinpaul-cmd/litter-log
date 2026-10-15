@@ -1,0 +1,16 @@
+[Unit]
+Description=Litter Log (Whisker sync + web app)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/catbox
+Environment=CATBOX_HOME=%h/catbox
+# CATBOX_VISION, CATBOX_TZ, ... written by deploy.sh from deploy.env
+EnvironmentFile=-%h/catbox/app.env
+ExecStart=%h/catbox/.venv/bin/python %h/catbox/server.py
+Restart=always
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,479 @@
+"""API client for HGSmart Pet Feeder."""
+import asyncio
+import json
+import logging
+import time
+import uuid
+from typing import Any
+
+import aiohttp
+
+from .const import BASE_URL, CLIENT_ID, CLIENT_SECRET, MAX_PORTIONS, MIN_PORTIONS
+
+
+class HGSmartAuthError(Exception):
+    """Raised when authentication with the HGSmart API fails definitively."""
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class HGSmartApiClient:
+    """API client for HGSmart devices."""
+
+    def __init__(
+        self,
+        username: str,
+        password: str | None = None,
+        refresh_token: str | None = None,
+        locale: str = "en-US",
+        timezone: str = "UTC",
+    ) -> None:
+        """Initialize the API client.
+
+        Args:
+            username: Account username
+            password: Account password (required for initial login)
+            refresh_token: Refresh token (used instead of password if available)
+            locale: Locale string (affects strings returned from api)
+            timezone: Timezone string (affects timestamps from api)
+        """
+        self.username = username
+        self.password = password
+        self.locale = locale
+        self.timezone = timezone
+        self.access_token: str | None = None
+        self.refresh_token: str | None = refresh_token
+        self._session: aiohttp.ClientSession | None = None
+
+    def _ensure_session(self) -> aiohttp.ClientSession:
+        """Ensure a session exists and return it."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    async def close(self) -> None:
+        """Close the aiohttp session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+
+    def _get_headers(self, use_token: bool = True) -> dict[str, str]:
+        """Build standard headers for API calls."""
+        headers = {
+            "User-Agent": "Dart/3.6 (dart:io)",
+            "Accept-Language": self.locale,
+            "Zoneid": self.timezone,
+            "Client": CLIENT_ID,
+            "Wunit": "0",
+            "Tunit": "0",
+            "Content-Type": "application/json",
+        }
+        if use_token and self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
+        return headers
+
+    async def _request(
+        self, method: str, url: str, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Execute an API request with token refresh logic."""
+        headers = kwargs.pop("headers", self._get_headers())
+
+        # Ensure authorization header is set if not present and we have a token
+        if "Authorization" not in headers and self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
+
+        session = self._ensure_session()
+
+        try:
+            async with session.request(
+                method, url, headers=headers, timeout=aiohttp.ClientTimeout(total=10), **kwargs
+            ) as response:
+                try:
+                    data = await response.json()
+                except aiohttp.ContentTypeError:
+                    _LOGGER.error("Failed to parse JSON response from %s", url)
+                    return None
+
+                if data.get("code") == 200:
+                    return data
+                elif data.get("code") == 401:
+                    # Token expired, try refresh
+                    _LOGGER.info("Token expired, attempting refresh")
+                    if await self.refresh_access_token():
+                        # Update headers with new token
+                        headers["Authorization"] = f"Bearer {self.access_token}"
+                        # Retry request
+                        async with session.request(
+                            method, url, headers=headers, timeout=aiohttp.ClientTimeout(total=10), **kwargs
+                        ) as retry_response:
+                            try:
+                                retry_data = await retry_response.json()
+                                if retry_data.get("code") == 200:
+                                    return retry_data
+                                else:
+                                    _LOGGER.error("Request failed after refresh: %s", retry_data.get("msg"))
+                                    return None
+                            except aiohttp.ContentTypeError:
+                                _LOGGER.error("Failed to parse JSON response on retry from %s", url)
+                                return None
+                    else:
+                        raise HGSmartAuthError("Token refresh failed; reauthentication required")
+                else:
+                    _LOGGER.error("Request failed: %s", data.get("msg"))
+                    return None
+
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.exception("Request error to %s: %s", url, e)
+            return None
+
+    async def authenticate(self) -> bool:
+        """Authenticate using refresh token if available, otherwise login with password."""
+        if self.refresh_token:
+            _LOGGER.debug("Attempting authentication with refresh token")
+            if await self.refresh_access_token():
+                return True
+            _LOGGER.warning("Refresh token authentication failed, falling back to login")
+
+        if self.password:
+            _LOGGER.debug("Attempting authentication with username/password")
+            return await self.login()
+
+        _LOGGER.error("No credentials available for authentication")
+        return False
+
+    async def login(self) -> bool:
+        """Login with username and password."""
+        if not self.password:
+            _LOGGER.error("Cannot login: password not provided")
+            return False
+
+        url = f"{BASE_URL}/oauth/login"
+        payload = {
+            "account_num": self.username,
+            "pwd": self.password,
+            "captcha_uuid": "",
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+        }
+
+        headers = self._get_headers(use_token=False)
+        headers["Authorization"] = "Bearer null"
+
+        session = self._ensure_session()
+
+        try:
+            async with session.post(
+                url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                try:
+                    data = await response.json()
+                except aiohttp.ContentTypeError:
+                    _LOGGER.error("Login response was not JSON (got HTML/maintenance page?)")
+                    return False
+
+                if data.get("code") == 200:
+                    token_data = data.get("data") or {}
+                    access = token_data.get("accessToken")
+                    refresh = token_data.get("refreshToken")
+                    if not access or not refresh:
+                        _LOGGER.error("Login response missing tokens")
+                        return False
+                    self.access_token = access
+                    self.refresh_token = refresh
+                    _LOGGER.debug("Successfully logged in to HGSmart")
+                    return True
+                else:
+                    _LOGGER.error("Login failed: %s", data.get("msg"))
+                    return False
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.exception("Login error: %s", e)
+            return False
+
+    async def refresh_access_token(self) -> bool:
+        """Refresh access token using refresh token."""
+        if not self.refresh_token:
+            return False
+
+        url = f"{BASE_URL}/oauth/refreshToken"
+        payload = {"refreshtoken": self.refresh_token}
+
+        headers = self._get_headers()
+
+        session = self._ensure_session()
+
+        try:
+            async with session.post(
+                url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
+                try:
+                    data = await response.json()
+                except aiohttp.ContentTypeError:
+                    _LOGGER.error("Token refresh response was not JSON")
+                    return False
+
+                if data.get("code") == 200:
+                    token_data = data.get("data") or {}
+                    access = token_data.get("accessToken")
+                    refresh = token_data.get("refreshToken")
+                    if not access or not refresh:
+                        _LOGGER.error("Token refresh response missing tokens")
+                        return False
+                    self.access_token = access
+                    self.refresh_token = refresh
+                    _LOGGER.debug("Successfully refreshed token")
+                    return True
+                else:
+                    _LOGGER.error("Token refresh failed: %s", data.get("msg"))
+                    return False
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            _LOGGER.exception("Token refresh error: %s", e)
+            return False
+
+    async def get_devices(self) -> list[dict[str, Any]]:
+        """Get list of all devices."""
+        url = f"{BASE_URL}/app/device/list"
+        data = await self._request("GET", url)
+        if data:
+            return data.get("data", [])
+        return []
+
+    async def get_feeder_stats(self, device_id: str) -> dict[str, Any] | None:
+        """GET /app/device/feeder/summary/{device_id} — feeder summary.
+
+        The ``data`` object typically includes:
+
+        - ``eating``: list of ``{"type": "1"|"2", "time": int, "duration": int}``
+          (bowl id, visit count, total duration in seconds for that bowl).
+          type 1 is left bowl, type 2 is right bowl
+        - ``remaining``: food remaining (percentage or device-specific scale).
+        - ``desiccantExpire``: desiccant days remaining (or similar).
+        """
+        url = f"{BASE_URL}/app/device/feeder/summary/{device_id}"
+        data = await self._request("GET", url)
+        if data:
+            return data.get("data")
+        return None
+
+    async def get_device_attributes(self, device_id: str) -> dict[str, Any] | None:
+        """Get device attributes including feeding schedules."""
+        url = f"{BASE_URL}/app/device/attribute/{device_id}"
+        data = await self._request("GET", url)
+        if data:
+            return data.get("data")
+        return None
+
+    async def get_device_today_events(self, device_id: str) -> dict[str, Any] | None:
+        """Get today's activity log (feeding and eating events).
+
+        Response shape: ``{"events": [...], "total": N}`` where each event has
+        createTime, eventDesc, and event keys.
+
+        Requires correct timezone and locale for localized response.
+        """
+        url = f"{BASE_URL}/app/device/today/{device_id}"
+        data = await self._request("GET", url)
+        if not data:
+            return None
+        raw_events = data.get("data")
+        if not isinstance(raw_events, list):
+            raw_events = []
+        return {"events": raw_events, "total": len(raw_events)}
+
+    async def _put_ctrl_command(
+        self, device_id: str, identifier: str, value: str
+    ) -> bool:
+        """Send one ctrl JSON blob via PUT …/attribute/{id} (multipart ``command`` field)."""
+        url = f"{BASE_URL}/app/device/attribute/{device_id}"
+        current_time_ms = int(time.time() * 1000)
+        spoofed_uuid = uuid.uuid1(node=0x8DD711617773, clock_seq=0x8697)
+        message_id = spoofed_uuid.hex
+        payload_dict = {
+            "ctrl": {"identifier": identifier, "value": value},
+            "ctrl_time": str(current_time_ms),
+            "message_id": message_id,
+        }
+        headers = self._get_headers()
+        if "Content-Type" in headers:
+            del headers["Content-Type"]
+        payload_json = json.dumps(payload_dict)
+        form = aiohttp.FormData()
+        form.add_field("command", payload_json, content_type="application/json")
+        result = await self._request("PUT", url, headers=headers, data=form)
+        return result is not None
+
+    async def set_meal_call_sound_mode(
+        self, device_id: str, custom_recording: bool
+    ) -> bool:
+        """Set meal call to built-in voice (False) or custom recording (True).
+
+        The cloud API expects two PUTs in order: ``music`` = ``0``, then
+        ``choosevoice`` = ``0`` (default) or ``1`` (custom).
+        """
+        if not await self._put_ctrl_command(device_id, "music", "0"):
+            _LOGGER.error("Meal call: failed to set music for %s", device_id)
+            return False
+        voice = "1" if custom_recording else "0"
+        if not await self._put_ctrl_command(device_id, "choosevoice", voice):
+            _LOGGER.error("Meal call: failed to set choosevoice for %s", device_id)
+            return False
+        _LOGGER.info(
+            "Meal call sound set to %s for %s",
+            "custom recording" if custom_recording else "default",
+            device_id,
+        )
+        return True
+
+    async def set_button_lockout(self, device_id: str, locked: bool) -> bool:
+        """Enable or disable physical button lockout (ctrl identifier ``child``)."""
+        val = "1" if locked else "0"
+        if not await self._put_ctrl_command(device_id, "child", val):
+            _LOGGER.error("Button lockout: failed to set child=%s for %s", val, device_id)
+            return False
+        _LOGGER.info(
+            "Button lockout set to %s for %s",
+            "on" if locked else "off",
+            device_id,
+        )
+        return True
+
+    async def send_feed_command(self, device_id: str, portions: int = 1) -> bool:
+        """Send feed command to device."""
+        # Validate portions parameter
+        if not MIN_PORTIONS <= portions <= MAX_PORTIONS:
+            _LOGGER.error(
+                "Invalid portions value: %d. Must be between %d and %d",
+                portions, MIN_PORTIONS, MAX_PORTIONS,
+            )
+            return False
+
+        url = f"{BASE_URL}/app/device/attribute/{device_id}"
+
+        # Build command payload
+        current_time_ms = int(time.time() * 1000)
+        spoofed_uuid = uuid.uuid1(node=0x8DD711617773, clock_seq=0x8697)
+        message_id = spoofed_uuid.hex
+
+        current_minute = time.localtime().tm_min
+        minute_hex = f"{current_minute:02x}"
+        portions_hex = f"{portions:02x}"
+        command_value = f"0120{minute_hex}{portions_hex}"
+
+        payload_dict = {
+            "ctrl": {"identifier": "userfoodframe", "value": command_value},
+            "ctrl_time": str(current_time_ms),
+            "message_id": message_id,
+        }
+
+        # Override headers because we are sending form data, not json
+        headers = self._get_headers()
+        # Remove Content-Type so aiohttp can set it for multipart/form-data
+        if "Content-Type" in headers:
+            del headers["Content-Type"]
+
+        payload_json = json.dumps(payload_dict)
+
+        # Create multipart form data
+        data = aiohttp.FormData()
+        data.add_field('command', payload_json, content_type='application/json')
+
+        result = await self._request("PUT", url, headers=headers, data=data)
+
+        if result:
+            _LOGGER.info("Feed command sent successfully to %s (%d portions)", device_id, portions)
+            return True
+        return False
+
+    async def reset_desiccant(self, device_id: str) -> bool:
+        """Reset desiccant expiration timer."""
+        url = f"{BASE_URL}/app/device/feeder/desiccant/{device_id}"
+        result = await self._request("PUT", url)
+
+        if result:
+            _LOGGER.info("Desiccant reset successfully for %s", device_id)
+            return True
+        return False
+
+    async def set_food_remaining(self, device_id: str, percentage: int) -> bool:
+        """Set food remaining percentage (0-100)."""
+        url = f"{BASE_URL}/app/device/feeder/refill"
+
+        # API uses capacity of 200, so convert percentage to that scale
+        capacity = 200
+        surplus = int((percentage / 100.0) * capacity)
+
+        payload = {
+            "deviceId": device_id,
+            "capacity": capacity,
+            "surplus": surplus,
+            "capacityModel": "",
+        }
+
+        result = await self._request("PUT", url, json=payload)
+
+        if result:
+            _LOGGER.info("Food remaining set to %d%% for %s", percentage, device_id)
+            return True
+        return False
+
+    async def set_schedule(
+        self,
+        device_id: str,
+        slot: int,
+        hour: int,
+        minute: int,
+        portions: int,
+        enabled: bool = True,
+    ) -> bool:
+        """Set a feeding schedule slot.
+
+        Args:
+            device_id: Device ID
+            slot: Slot number (0-5)
+            hour: Hour in 24-hour UTC format (0-23)
+            minute: Minute (0-59)
+            portions: Number of portions (1-9)
+            enabled: Whether the schedule is enabled
+
+        Returns:
+            True if successful, False otherwise
+        """
+        from .helpers import build_plan_value
+
+        url = f"{BASE_URL}/app/device/attribute/{device_id}"
+
+        # Build command payload
+        current_time_ms = int(time.time() * 1000)
+        spoofed_uuid = uuid.uuid1(node=0x8DD711617773, clock_seq=0x8697)
+        message_id = spoofed_uuid.hex
+
+        command_value = build_plan_value(hour, minute, portions, slot, enabled)
+
+        payload_dict = {
+            "ctrl": {"identifier": "plan", "value": command_value},
+            "ctrl_time": str(current_time_ms),
+            "message_id": message_id,
+        }
+
+        # Use form data like other device commands
+        headers = self._get_headers()
+        if "Content-Type" in headers:
+            del headers["Content-Type"]
+
+        payload_json = json.dumps(payload_dict)
+
+        data = aiohttp.FormData()
+        data.add_field("command", payload_json, content_type="application/json")
+
+        result = await self._request("PUT", url, headers=headers, data=data)
+
+        if result:
+            _LOGGER.info(
+                "Schedule slot %d set to %02d:%02d UTC, %d portions, enabled=%s for %s",
+                slot,
+                hour,
+                minute,
+                portions,
+                enabled,
+                device_id,
+            )
+            return True
+        return False
