@@ -54,6 +54,9 @@ img { display: block; }
 .hero { padding: 22px 0 6px; display: flex; gap: 14px; align-items: center; }
 .mark { width: 46px; height: 46px; border-radius: 14px; background: var(--molten); display: grid; place-items: center; flex: none; }
 .hero h1 { font-size: 30px; line-height: 1.04; margin: 6px 0 0; }
+.feedjump { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); color: var(--ink); font-weight: 700; font-size: 14px; text-decoration: none; }
+.feedjump[hidden] { display: none; }
 .today { margin-top: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 14px 10px; box-shadow: var(--shadow); }
 .track { position: relative; height: 84px; }
 .track .rail { position: absolute; left: 0; right: 0; top: 64px; height: 4px; border-radius: 2px; background: var(--glass-2); }
@@ -258,6 +261,7 @@ footer input { font: inherit; font-size: 15px; padding: 9px 12px; border-radius:
   <header class="hero">
     <div class="mark" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 512 512" fill="#fff"><ellipse cx="256" cy="330" rx="98" ry="84"/><ellipse cx="150" cy="214" rx="40" ry="52" transform="rotate(-18 150 214)"/><ellipse cx="218" cy="150" rx="40" ry="54" transform="rotate(-6 218 150)"/><ellipse cx="294" cy="150" rx="40" ry="54" transform="rotate(6 294 150)"/><ellipse cx="362" cy="214" rx="40" ry="52" transform="rotate(18 362 214)"/></svg></div>
     <div><div class="eyebrow" id="eyebrow">Litter Log</div><h1 class="display" id="headline">Loading…</h1></div>
+    <a class="feedjump" id="feedjump" href="#feeder" hidden>Feed</a>
   </header>
   <div class="today" id="today" aria-label="Today's visits"></div>
   <div id="banner"></div>
@@ -403,7 +407,8 @@ function render() {
   // don't redraw the feeder under someone's finger while they type a meal time
   if (!feederUI.typing) { $("#feeder").innerHTML = feederHtml(); bindFeeder(); }
   $("#devices").innerHTML = devicesHtml();
-  if (ctlJump) { ctlJump = false; $("#controls").scrollIntoView({ block: "start" }); }
+  $("#feedjump").hidden = !S.feeder;
+  if (ctlJump) { const t = ctlJump; ctlJump = ""; $(t).scrollIntoView({ block: "start" }); }
 }
 
 const pickBtn = (visit, id, pressed, sug, keep, sm) => { const k = cat(id);
@@ -702,18 +707,23 @@ const OPS = { clean: "Clean now", night_light: "Night light", panel_lock: "Butto
 const opText = c => c.op === "night_light" ? `Night light ${String(c.value).toLowerCase()}` : c.op === "panel_lock" ? (c.value ? "Buttons locked" : "Buttons unlocked")
   : c.op === "wait" ? `Wait set to ${c.value} min` : OPS[c.op] || c.op;
 // The box and feeder buttons sit folded at the bottom: the page is shared with family who come to see the cats.
-// Open or closed is remembered per phone, and /#controls opens it and scrolls there.
+// Open or closed is remembered per phone. /#controls opens it and scrolls there; /#feeder and the Feed button
+// at the top go straight to the feeder, so whoever is minding the cats can feed them without hunting for it.
 const ctlOpen = () => store.get("catbox-controls") === "1";
-function setControls(on, scroll) {
+function setControls(on) {
   store.set("catbox-controls", on ? "1" : "");
   $("#ctl-toggle").setAttribute("aria-expanded", String(on));
   $("#ctl-body").hidden = !on;
-  if (scroll) $("#controls").scrollIntoView({ behavior: "smooth", block: "start" });
 }
+const isJump = h => h === "#controls" || h === "#feeder";
+// no smooth scroll: the fold sits a long way down, and an animated scroll lands short while the page lays out
+function jumpTo(target) { setControls(true); $(target).scrollIntoView({ block: "start" }); }
 $("#ctl-toggle").onclick = () => setControls(!ctlOpen());
-let ctlJump = location.hash === "#controls";
-setControls(ctlOpen() || ctlJump);
-window.addEventListener("hashchange", () => { if (location.hash === "#controls") setControls(true, true); });
+$("#feedjump").insertAdjacentHTML("afterbegin", ICON.bowl);
+$("#feedjump").onclick = e => { e.preventDefault(); jumpTo("#feeder"); };
+let ctlJump = isJump(location.hash) ? location.hash : "";
+setControls(ctlOpen() || !!ctlJump);
+window.addEventListener("hashchange", () => { if (isJump(location.hash)) jumpTo(location.hash); });
 function controlsHtml() {
   // anything that needs a person shows on the folded row, so closing it never hides a problem
   const warn = [...(S.robots || []).flatMap(r => !r.online ? [`${place(r.key)} box offline`]
