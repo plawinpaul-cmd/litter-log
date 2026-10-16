@@ -727,6 +727,7 @@ window.addEventListener("hashchange", () => { if (isJump(location.hash)) jumpTo(
 function controlsHtml() {
   // anything that needs a person shows on the folded row, so closing it never hides a problem
   const warn = [...(S.robots || []).flatMap(r => !r.online ? [`${place(r.key)} box offline`]
+      : r.attention ? [`${place(r.key)} box: ${r.attention.split(":")[0].toLowerCase()}`]
       : r.drawer >= 80 ? [`${place(r.key)} drawer ${Math.round(r.drawer)}% full`] : []),
     ...(S.feeder?.online === false ? ["Feeder offline"] : [])];
   const sub = warn.length ? warn.join(" · ") : "Clean the boxes, change meals";
@@ -739,10 +740,10 @@ function boxesHtml() {
   const order = Object.keys(S.places || {});
   const rows = [...robots].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)).map(r => {
     const bc = `var(--box-${Math.max(0, order.indexOf(r.key)) % 2 + 1})`, k = r.key, busy = boxUI.busy.has(k);
-    const st = !r.online ? "Offline" : r.cat_inside ? "Cat inside" : r.busy ? "Cleaning" : r.timing ? `Cleans after the ${r.wait || "?"} min wait` : r.sleeping ? "Sleeping" : r.status;
+    const st = !r.online ? "Offline" : r.attention ? r.attention : r.cat_inside ? "Cat inside" : r.busy ? "Cleaning" : r.timing ? `Cleans after the ${r.wait || "?"} min wait` : r.sleeping ? "Sleeping" : r.status;
     const bits = [st, r.drawer != null ? `drawer ${Math.round(r.drawer)}% full` : "", r.litter != null ? `litter ${Math.round(r.litter)}%` : ""].filter(Boolean);
-    const hot = !r.online || r.drawer >= 80;
-    const can = r.online && !r.cat_inside && !r.busy && !busy;
+    const hot = !r.online || r.drawer >= 80 || !!r.attention;
+    const can = r.online && !r.attention && !r.cat_inside && !r.busy && !busy;   // a clean command is ignored until the problem is fixed
     const cleanLabel = busy && boxUI.armed[k] === "sent" ? "Sending…" : r.cat_inside ? "Cat inside" : r.busy ? "Cleaning…" : boxUI.armed[k] === true ? "Tap again to clean" : "Clean now";
     const seg = (op, opts, cur) => `<div class="seg" role="group">${opts.map(([v, l]) =>
       `<button type="button" data-box="${k}" data-op="${op}" data-v='${JSON.stringify(v)}' aria-pressed="${cur === v}" ${busy || !r.online ? "disabled" : ""}>${l}</button>`).join("")}</div>`;

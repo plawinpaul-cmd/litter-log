@@ -109,6 +109,22 @@ EVO_POLL_INSIDE = 4     # while a cat is on the scale: catch the exit within sec
 # "cat detect", which it names CAT_SENSOR_INTERRUPTED; checking CAT_DETECTED alone missed every visit.
 CAT_INSIDE = (LitterBoxStatus.CAT_DETECTED, LitterBoxStatus.CAT_SENSOR_INTERRUPTED)
 BUSY = (LitterBoxStatus.CLEAN_CYCLE, LitterBoxStatus.EMPTY_CYCLE, LitterBoxStatus.POWER_UP, LitterBoxStatus.POWER_DOWN)
+# states that need a person before the box cleans again, in words for whoever reads the page
+ATTENTION = {LitterBoxStatus.BONNET_REMOVED: "Bonnet off: it won't clean until it's back on", LitterBoxStatus.OFF: "Switched off",
+             **{s: s.text for s in (LitterBoxStatus.PINCH_DETECT, LitterBoxStatus.STARTUP_PINCH_DETECT, LitterBoxStatus.CAT_SENSOR_FAULT,
+                                    LitterBoxStatus.STARTUP_CAT_SENSOR_FAULT, LitterBoxStatus.OVER_TORQUE_FAULT, LitterBoxStatus.DUMP_POSITION_FAULT,
+                                    LitterBoxStatus.HOME_POSITION_FAULT, LitterBoxStatus.DUMP_HOME_POSITION_FAULT)}}
+
+
+def robot_status(r) -> LitterBoxStatus:
+    """r.status, except where the box's own status light names a problem its state field hides: the EVO keeps
+    reporting StRobotIdle with its bonnet off and pylitterbot reads that field first, so a box that couldn't clean
+    showed as Ready for hours (2026-10-15)."""
+    st = r.status
+    s = getattr(r, "_state", None) or {}
+    if st == LitterBoxStatus.READY and (s.get("isBonnetRemoved") is True or (s.get("statusIndicator") or {}).get("type") == "BONNET_REMOVED"):
+        return LitterBoxStatus.BONNET_REMOVED
+    return st
 CLIP_KEEP_DAYS = 14      # mp4s; the frames stay
 FRAME_KEEP_DAYS = 120
 log = logging.getLogger("catbox")
@@ -264,7 +280,7 @@ class Whisker:
 
     def on_robot_update(self, r):
         key = ROBOT_KEY.get(type(r).__name__, r.serial)
-        st = r.status
+        st = robot_status(r)
         raw = {**getattr(r, "_data", {}), **(getattr(r, "_state", None) or {})}
         # the EVO's cloud state skips "cat detect" for most of a visit (2026-10-09: a 166 s visit showed up 94 s in,
         # straight as the wait timer), but its scale flag says a cat is on it: WeightSet, then WeightClear on the way out
@@ -273,7 +289,7 @@ class Whisker:
             r._transport._interval = EVO_POLL_INSIDE if inside else EVO_POLL_SECONDS
         nl = prop(r, "night_light_mode")
         self.status[key] = {"key": key, "label": ROBOT_LABEL.get(key, key), "name": r.name,
-                            "status": st.text if isinstance(st, LitterBoxStatus) else str(st),
+                            "status": st.text if isinstance(st, LitterBoxStatus) else str(st), "attention": ATTENTION.get(st),
                             "cat_inside": inside, "busy": st in BUSY, "timing": st == LitterBoxStatus.CAT_SENSOR_TIMING,
                             "online": bool(r.is_online), "drawer": r.waste_drawer_level,
                             "litter": prop(r, "litter_level"), "seen": int(time.time()),
