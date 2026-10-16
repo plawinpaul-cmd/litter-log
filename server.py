@@ -110,8 +110,8 @@ EVO_POLL_INSIDE = 4     # while a cat is on the scale: catch the exit within sec
 CAT_INSIDE = (LitterBoxStatus.CAT_DETECTED, LitterBoxStatus.CAT_SENSOR_INTERRUPTED)
 BUSY = (LitterBoxStatus.CLEAN_CYCLE, LitterBoxStatus.EMPTY_CYCLE, LitterBoxStatus.POWER_UP, LitterBoxStatus.POWER_DOWN)
 # states that need a person before the box cleans again, in words for whoever reads the page
-# the bonnet sensor can read "off" with the cover sitting on but not seated, so say what the box sees
-ATTENTION = {LitterBoxStatus.BONNET_REMOVED: "Top cover not detected: it won't clean until the cover is lifted off and reseated", LitterBoxStatus.OFF: "Switched off",
+# the bonnet sensor is optical and can read "off" with the cover latched (dust on it, light in the gap), so say what the box sees
+ATTENTION = {LitterBoxStatus.BONNET_REMOVED: "Cover sensor reads open: it won't clean until that clears", LitterBoxStatus.OFF: "Switched off",
              **{s: s.text for s in (LitterBoxStatus.PINCH_DETECT, LitterBoxStatus.STARTUP_PINCH_DETECT, LitterBoxStatus.CAT_SENSOR_FAULT,
                                     LitterBoxStatus.STARTUP_CAT_SENSOR_FAULT, LitterBoxStatus.OVER_TORQUE_FAULT, LitterBoxStatus.DUMP_POSITION_FAULT,
                                     LitterBoxStatus.HOME_POSITION_FAULT, LitterBoxStatus.DUMP_HOME_POSITION_FAULT)}}
@@ -121,7 +121,7 @@ def robot_status(r) -> LitterBoxStatus:
     """r.status, except where the box's own status light names a problem its state field hides: the EVO keeps
     reporting StRobotIdle with its bonnet off and pylitterbot reads that field first, so a box that couldn't clean
     showed as Ready for hours (2026-10-15). A remote reset, a remote power cycle and a clean command don't clear it:
-    the box rechecks the sensor and still refuses, so only reseating the cover does."""
+    the box rechecks the sensor at boot and still refuses."""
     st = r.status
     s = getattr(r, "_state", None) or {}
     if st == LitterBoxStatus.READY and (s.get("isBonnetRemoved") is True or (s.get("statusIndicator") or {}).get("type") == "BONNET_REMOVED"):
